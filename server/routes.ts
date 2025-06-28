@@ -35,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     store: new pgStore({
       conString: process.env.DATABASE_URL,
       createTableIfMissing: true,
-      tableName: 'session'
+      tableName: 'sessions'
     }),
     secret: process.env.SESSION_SECRET || "default-secret-key",
     resave: false,
@@ -95,11 +95,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
+      console.log("Registration attempt:", req.body.email);
       const userData = insertUserSchema.parse(req.body);
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
+        console.log("User already exists:", userData.email);
         return res.status(400).json({ error: "User already exists" });
       }
 
@@ -113,6 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true,
         isAdmin: false,
       });
+      console.log("User created:", user.id);
 
       // Create client
       const client = await storage.createClient({
@@ -123,6 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         widgetTheme: "default",
         isActive: true,
       });
+      console.log("Client created:", client.id);
 
       // Set session with activity tracking
       req.session.userId = user.id;
@@ -130,9 +134,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.isAdmin = user.isAdmin;
       req.session.lastActivity = Date.now();
 
-      res.json({ 
-        user: { id: user.id, username: user.username, email: user.email },
-        client: client
+      // Save session explicitly
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session creation failed" });
+        }
+        
+        console.log("Registration successful for:", user.email);
+        res.json({ 
+          user: { id: user.id, username: user.username, email: user.email },
+          client: client
+        });
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -142,19 +155,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/login", async (req, res) => {
     try {
+      console.log("Login attempt:", req.body.email);
       const loginData = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(loginData.email);
       if (!user) {
+        console.log("User not found:", loginData.email);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (!user.password) {
+        console.log("User has no password (OAuth user):", loginData.email);
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
       const isValidPassword = await bcrypt.compare(loginData.password, user.password);
       if (!isValidPassword) {
+        console.log("Invalid password for:", loginData.email);
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      if (!user.isActive) {
+        console.log("User account disabled:", loginData.email);
+        return res.status(401).json({ error: "Account disabled" });
+      }
+
       const client = await storage.getClientByUserId(user.id);
+      console.log("Client found:", client?.id);
       
       // Set session with activity tracking
       req.session.userId = user.id;
@@ -162,9 +189,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.isAdmin = user.isAdmin;
       req.session.lastActivity = Date.now();
 
-      res.json({ 
-        user: { id: user.id, username: user.username, email: user.email },
-        client: client
+      // Save session explicitly
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session creation failed" });
+        }
+        
+        console.log("Login successful for:", user.email);
+        res.json({ 
+          user: { id: user.id, username: user.username, email: user.email },
+          client: client
+        });
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -173,10 +209,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/auth/logout", (req, res) => {
+    console.log("Logout attempt for user:", req.session.userId);
     req.session.destroy((err) => {
       if (err) {
+        console.error("Logout error:", err);
         return res.status(500).json({ error: "Could not log out" });
       }
+      console.log("Logout successful");
       res.json({ success: true });
     });
   });

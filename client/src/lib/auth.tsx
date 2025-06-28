@@ -114,25 +114,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      console.log("Starting login mutation for:", email);
       const response = await apiRequest("POST", "/api/auth/login", { email, password });
-      return response.json();
+      const data = await response.json();
+      console.log("Login response received:", data);
+      return data;
     },
     onSuccess: (data) => {
+      console.log("Login mutation successful:", data);
       setUser(data.user);
       setClient(data.client);
       queryClient.setQueryData(["/api/auth/me"], data);
+    },
+    onError: (error) => {
+      console.error("Login mutation failed:", error);
     },
   });
 
   const registerMutation = useMutation({
     mutationFn: async ({ username, email, password }: { username: string; email: string; password: string }) => {
+      console.log("Starting registration mutation for:", email);
       const response = await apiRequest("POST", "/api/auth/register", { username, email, password });
-      return response.json();
+      const data = await response.json();
+      console.log("Registration response received:", data);
+      return data;
     },
     onSuccess: (data) => {
+      console.log("Registration mutation successful:", data);
       setUser(data.user);
       setClient(data.client);
       queryClient.setQueryData(["/api/auth/me"], data);
+    },
+    onError: (error) => {
+      console.error("Registration mutation failed:", error);
     },
   });
 
@@ -149,10 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = async (email: string, password: string) => {
+    console.log("Login function called for:", email);
     await loginMutation.mutateAsync({ email, password });
   };
 
   const register = async (username: string, email: string, password: string) => {
+    console.log("Register function called for:", email);
     await registerMutation.mutateAsync({ username, email, password });
   };
 
