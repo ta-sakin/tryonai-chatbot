@@ -21,6 +21,7 @@ declare module 'express-session' {
     userId: number;
     clientId: number;
     isAdmin: boolean;
+    lastActivity: number;
   }
 }
 
@@ -39,14 +40,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     secret: process.env.SESSION_SECRET || "default-secret-key",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 24 hours
+    cookie: { 
+      secure: false, 
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      httpOnly: true
+    },
+    rolling: true, // Reset expiration on each request
   }));
+
+  // Session refresh middleware
+  const refreshSession = (req: any, res: any, next: any) => {
+    if (req.session.userId) {
+      const now = Date.now();
+      const lastActivity = req.session.lastActivity || 0;
+      const timeSinceLastActivity = now - lastActivity;
+      
+      // If more than 30 minutes since last activity, refresh session
+      if (timeSinceLastActivity > 30 * 60 * 1000) {
+        req.session.lastActivity = now;
+        req.session.save((err: any) => {
+          if (err) {
+            console.error('Session save error:', err);
+          }
+        });
+      }
+    }
+    next();
+  };
+
+  // Apply session refresh to all routes
+  app.use(refreshSession);
 
   // Authentication middleware
   const requireAuth = (req: any, res: any, next: any) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Authentication required" });
     }
+    
+    // Update last activity
+    req.session.lastActivity = Date.now();
     next();
   };
 
@@ -54,6 +86,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId || !req.session.isAdmin) {
       return res.status(403).json({ error: "Admin access required" });
     }
+    
+    // Update last activity
+    req.session.lastActivity = Date.now();
     next();
   };
 
@@ -89,10 +124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true,
       });
 
-      // Set session
+      // Set session with activity tracking
       req.session.userId = user.id;
       req.session.clientId = client.id;
       req.session.isAdmin = user.isAdmin;
+      req.session.lastActivity = Date.now();
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
@@ -120,9 +156,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const client = await storage.getClientByUserId(user.id);
       
+      // Set session with activity tracking
       req.session.userId = user.id;
       req.session.clientId = client?.id;
       req.session.isAdmin = user.isAdmin;
+      req.session.lastActivity = Date.now();
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
@@ -141,6 +179,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ success: true });
     });
+  });
+
+  // Session refresh endpoint
+  app.post("/api/auth/refresh", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const client = await storage.getClientByUserId(req.session.userId!);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update session activity
+      req.session.lastActivity = Date.now();
+      
+      res.json({
+        user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
+        client: client,
+        refreshed: true
+      });
+    } catch (error) {
+      console.error("Session refresh error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   app.get("/api/auth/me", requireAuth, async (req, res) => {
@@ -177,8 +239,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid admin credentials" });
       }
       
+      // Set session with activity tracking
       req.session.userId = user.id;
       req.session.isAdmin = true;
+      req.session.lastActivity = Date.now();
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }

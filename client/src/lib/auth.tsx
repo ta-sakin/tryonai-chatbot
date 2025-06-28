@@ -39,11 +39,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/auth/me"],
     enabled: true,
     retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 15 * 60 * 1000, // Refetch every 15 minutes to keep session alive
   });
+
+  // Session refresh mutation
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/auth/refresh");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setUser(data.user);
+      setClient(data.client);
+      queryClient.setQueryData(["/api/auth/me"], data);
+    },
+    onError: (error) => {
+      console.error("Session refresh failed:", error);
+      // If refresh fails, clear user state
+      setUser(null);
+      setClient(null);
+      queryClient.removeQueries({ queryKey: ["/api/auth/me"] });
+    },
+  });
+
+  // Auto-refresh session before it expires
+  useEffect(() => {
+    if (user) {
+      // Refresh session every 25 minutes (before 30-minute server timeout)
+      const refreshInterval = setInterval(() => {
+        refreshMutation.mutate();
+      }, 25 * 60 * 1000);
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [user, refreshMutation]);
+
+  // Handle visibility change to refresh session when user returns
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user) {
+        // Refresh session when user returns to tab
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user, queryClient]);
 
   useEffect(() => {
     if (data) {
