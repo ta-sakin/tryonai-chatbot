@@ -14,7 +14,10 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"), // Make nullable for OAuth users
+  googleId: text("google_id").unique(), // Add Google ID
+  avatar: text("avatar"), // Add avatar URL from Google
+  provider: text("provider").default("local").notNull(), // local, google, etc.
   isActive: boolean("is_active").default(true).notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
