@@ -35,18 +35,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [client, setClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["/api/auth/me"],
     enabled: true,
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   useEffect(() => {
     if (data) {
       setUser(data.user);
       setClient(data.client);
+    } else if (error && error.message.includes('401:')) {
+      // Clear user state on 401 errors
+      setUser(null);
+      setClient(null);
     }
-  }, [data]);
+  }, [data, error]);
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
@@ -56,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (data) => {
       setUser(data.user);
       setClient(data.client);
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.setQueryData(["/api/auth/me"], data);
     },
   });
 
@@ -68,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (data) => {
       setUser(data.user);
       setClient(data.client);
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.setQueryData(["/api/auth/me"], data);
     },
   });
 
