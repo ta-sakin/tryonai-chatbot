@@ -445,7 +445,7 @@ async function processWithGemini(userImage: string, clothingImage: string): Prom
   }
 
   try {
-    const { GoogleGenerativeAI } = await import("@google/genai");
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
