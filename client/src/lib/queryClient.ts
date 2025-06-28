@@ -44,21 +44,18 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: "returnNull" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
       retry: (failureCount, error) => {
-        // Don't retry on 401 errors (authentication required)
-        if (error.message.includes('401:')) {
+        // Don't retry on authentication errors
+        if (error.message.includes('401:') || error.message.includes('403:')) {
           return false;
         }
-        // Don't retry on 403 errors (forbidden)
-        if (error.message.includes('403:')) {
-          return false;
-        }
-        // Retry up to 3 times for other errors
-        return failureCount < 3;
+        // Retry up to 2 times for other errors
+        return failureCount < 2;
       },
     },
     mutations: {

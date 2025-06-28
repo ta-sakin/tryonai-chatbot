@@ -33,17 +33,18 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [client, setClient] = useState<Client | null>(null);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/auth/me"],
     enabled: true,
     retry: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnMount: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchInterval: 15 * 60 * 1000, // Refetch every 15 minutes to keep session alive
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes
+    refetchInterval: false, // Disable automatic refetching
   });
 
   // Session refresh mutation
@@ -66,41 +67,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Auto-refresh session before it expires
+  // Auto-refresh session periodically when user is authenticated
   useEffect(() => {
-    if (user) {
-      // Refresh session every 25 minutes (before 30-minute server timeout)
+    if (user && hasCheckedAuth) {
+      // Refresh session every 20 minutes
       const refreshInterval = setInterval(() => {
         refreshMutation.mutate();
-      }, 25 * 60 * 1000);
+      }, 20 * 60 * 1000);
 
       return () => clearInterval(refreshInterval);
     }
-  }, [user, refreshMutation]);
+  }, [user, hasCheckedAuth, refreshMutation]);
 
   // Handle visibility change to refresh session when user returns
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && user) {
-        // Refresh session when user returns to tab
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      if (!document.hidden && user && hasCheckedAuth) {
+        // Only refresh if it's been more than 5 minutes since last check
+        const lastQueryTime = queryClient.getQueryState(["/api/auth/me"])?.dataUpdatedAt || 0;
+        const timeSinceLastCheck = Date.now() - lastQueryTime;
+        
+        if (timeSinceLastCheck > 5 * 60 * 1000) {
+          refreshMutation.mutate();
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user, queryClient]);
+  }, [user, hasCheckedAuth, queryClient, refreshMutation]);
 
   useEffect(() => {
-    if (data) {
-      setUser(data.user);
-      setClient(data.client);
-    } else if (error && error.message.includes('401:')) {
-      // Clear user state on 401 errors
-      setUser(null);
-      setClient(null);
+    if (!isLoading) {
+      setHasCheckedAuth(true);
+      
+      if (data) {
+        setUser(data.user);
+        setClient(data.client);
+      } else {
+        // Clear user state if no data (likely 401 or not authenticated)
+        setUser(null);
+        setClient(null);
+      }
     }
-  }, [data, error]);
+  }, [data, isLoading]);
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
@@ -134,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setClient(null);
       queryClient.clear();
+      setHasCheckedAuth(false);
     },
   });
 
