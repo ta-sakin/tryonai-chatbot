@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Copy, Eye, TrendingUp, Users, Activity, Settings, Code } from "lucide-react";
+import { Copy, Eye, TrendingUp, Users, Activity, Settings, Code, Shield, RefreshCw } from "lucide-react";
 
 export default function Dashboard() {
   const { client } = useAuth();
@@ -18,8 +19,12 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   
   const [websiteUrl, setWebsiteUrl] = useState(client?.websiteUrl || "");
+  const [allowedDomains, setAllowedDomains] = useState<string[]>(client?.allowedDomains || []);
+  const [newDomain, setNewDomain] = useState("");
   const [widgetPosition, setWidgetPosition] = useState(client?.widgetPosition || "bottom-right");
   const [widgetTheme, setWidgetTheme] = useState(client?.widgetTheme || "default");
+  const [requireReferrerCheck, setRequireReferrerCheck] = useState(client?.requireReferrerCheck ?? true);
+  const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(client?.maxRequestsPerMinute || 10);
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["/api/client/analytics"],
@@ -47,12 +52,47 @@ export default function Dashboard() {
     },
   });
 
+  const regenerateKeysMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/client/regenerate-keys");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Keys regenerated",
+        description: "New security keys have been generated. Please update your widget code.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: () => {
+      toast({
+        title: "Regeneration failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveSettings = () => {
     updateSettingsMutation.mutate({
       websiteUrl,
+      allowedDomains,
       widgetPosition,
       widgetTheme,
+      requireReferrerCheck,
+      maxRequestsPerMinute,
     });
+  };
+
+  const addDomain = () => {
+    if (newDomain && !allowedDomains.includes(newDomain)) {
+      setAllowedDomains([...allowedDomains, newDomain]);
+      setNewDomain("");
+    }
+  };
+
+  const removeDomain = (domain: string) => {
+    setAllowedDomains(allowedDomains.filter(d => d !== domain));
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -63,14 +103,14 @@ export default function Dashboard() {
     });
   };
 
-  const getEmbedCode = () => {
-    if (!client?.appId) return "";
+  const getSecureEmbedCode = () => {
+    if (!client?.publicKey) return "";
     
     return `<script>
   (function() {
     var script = document.createElement('script');
     script.src = 'https://cdn.tryonai.com/widget.js';
-    script.dataset.appId = '${client.appId}';
+    script.dataset.publicKey = '${client.publicKey}';
     script.dataset.position = '${widgetPosition}';
     script.dataset.theme = '${widgetTheme}';
     document.head.appendChild(script);
@@ -172,6 +212,10 @@ export default function Dashboard() {
               <Settings className="h-4 w-4" />
               <span>Widget Settings</span>
             </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center space-x-2">
+              <Shield className="h-4 w-4" />
+              <span>Security</span>
+            </TabsTrigger>
             <TabsTrigger value="integration" className="flex items-center space-x-2">
               <Code className="h-4 w-4" />
               <span>Integration</span>
@@ -187,23 +231,26 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* App ID */}
+                {/* Public Key */}
                 <div>
-                  <Label className="text-sm font-medium">Your App ID</Label>
+                  <Label className="text-sm font-medium">Your Public Key</Label>
                   <div className="flex items-center space-x-2 mt-2">
                     <Input
-                      value={client.appId}
+                      value={client.publicKey}
                       readOnly
                       className="font-mono text-sm bg-gray-50"
                     />
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copyToClipboard(client.appId, "App ID")}
+                      onClick={() => copyToClipboard(client.publicKey, "Public Key")}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This key is safe to use in your frontend code
+                  </p>
                 </div>
 
                 {/* Website URL */}
@@ -276,29 +323,150 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="integration">
+          <TabsContent value="security">
             <div className="space-y-6">
-              {/* Embed Code */}
+              {/* Security Keys */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Embed Code</CardTitle>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Shield className="h-5 w-5" />
+                    <span>Security Keys</span>
+                  </CardTitle>
                   <CardDescription>
-                    Copy this code and paste it into your website's HTML
+                    Manage your widget's security credentials
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-yellow-600 text-xs">⚠️</span>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-yellow-800">Secure Implementation</h4>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          Your widget now uses secure token-based authentication. Only your public key is exposed to the frontend.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => regenerateKeysMutation.mutate()}
+                    disabled={regenerateKeysMutation.isPending}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    {regenerateKeysMutation.isPending ? "Regenerating..." : "Regenerate Security Keys"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Domain Security */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Allowed Domains</CardTitle>
+                  <CardDescription>
+                    Restrict widget usage to specific domains for enhanced security
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={newDomain}
+                      onChange={(e) => setNewDomain(e.target.value)}
+                      placeholder="example.com or *.example.com"
+                      onKeyPress={(e) => e.key === 'Enter' && addDomain()}
+                    />
+                    <Button onClick={addDomain} disabled={!newDomain}>
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {allowedDomains.map((domain, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <span className="text-sm font-mono">{domain}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDomain(domain)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="referrer-check">Require Referrer Validation</Label>
+                      <p className="text-sm text-gray-500">Additional security layer using referrer headers</p>
+                    </div>
+                    <Switch
+                      id="referrer-check"
+                      checked={requireReferrerCheck}
+                      onCheckedChange={setRequireReferrerCheck}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="rate-limit">Max Requests Per Minute</Label>
+                    <Input
+                      id="rate-limit"
+                      type="number"
+                      value={maxRequestsPerMinute}
+                      onChange={(e) => setMaxRequestsPerMinute(parseInt(e.target.value) || 10)}
+                      min="1"
+                      max="100"
+                      className="mt-2"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="integration">
+            <div className="space-y-6">
+              {/* Secure Embed Code */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Secure Embed Code</CardTitle>
+                  <CardDescription>
+                    Copy this secure code and paste it into your website's HTML
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-green-400 text-sm">
-                      <code>{getEmbedCode()}</code>
+                      <code>{getSecureEmbedCode()}</code>
                     </pre>
                   </div>
                   <Button
                     className="mt-4"
-                    onClick={() => copyToClipboard(getEmbedCode(), "Embed code")}
+                    onClick={() => copyToClipboard(getSecureEmbedCode(), "Secure embed code")}
                   >
                     <Copy className="h-4 w-4 mr-2" />
-                    Copy Code
+                    Copy Secure Code
                   </Button>
+                  
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-green-600 text-xs">🔒</span>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-green-800">Enhanced Security</h4>
+                        <p className="text-sm text-green-700 mt-1">
+                          This code uses your public key and secure token-based authentication. 
+                          Your secret keys are never exposed to the frontend.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

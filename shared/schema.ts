@@ -28,6 +28,8 @@ export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   appId: text("app_id").notNull().unique(),
+  secretKey: text("secret_key").notNull(), // Server-side secret key (never exposed)
+  publicKey: text("public_key").notNull(), // Public key for widget initialization
   websiteUrl: text("website_url"),
   allowedDomains: json("allowed_domains").default([]).notNull(), // Array of allowed domains
   widgetPosition: text("widget_position").default("bottom-right").notNull(),
@@ -60,7 +62,7 @@ export const tryOnSessions = pgTable("try_on_sessions", {
 export const analytics = pgTable("analytics", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull().references(() => clients.id),
-  eventType: text("event_type").notNull(), // view, try_on, conversion
+  eventType: text("event_type").notNull(), // view, try_on, conversion, widget_init
   metadata: json("metadata"),
   originDomain: text("origin_domain"), // Track analytics by domain
   userIp: text("user_ip"), // Track IP for analytics
@@ -144,10 +146,10 @@ export const loginSchema = z.object({
 });
 
 export const tryOnRequestSchema = z.object({
+  sessionToken: z.string(),
   userImage: z.string(),
   clothingImage: z.string().optional(),
   clothingImageUrl: z.string().optional(),
-  appId: z.string(),
 }).refine(data => data.clothingImage || data.clothingImageUrl, {
   message: "Either clothingImage or clothingImageUrl must be provided",
 });

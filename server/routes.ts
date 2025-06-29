@@ -5,6 +5,7 @@ import { SecurityValidator } from "./security";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import crypto from "crypto";
 import { 
   insertUserSchema, 
   insertClientSchema,
@@ -115,10 +116,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isAdmin: false,
       });
 
-      // Create client
+      // Generate secure keys
+      const appId = utilsGenerateAppId();
+      const secretKey = crypto.randomBytes(32).toString('hex');
+      const publicKey = crypto.randomBytes(16).toString('hex');
+
+      // Create client with secure keys
       const client = await storage.createClient({
         userId: user.id,
-        appId: utilsGenerateAppId(),
+        appId: appId,
+        secretKey: secretKey,
+        publicKey: publicKey,
         websiteUrl: null,
         allowedDomains: [],
         widgetPosition: "bottom-right",
@@ -137,7 +145,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
-        client: client
+        client: {
+          ...client,
+          secretKey: undefined // Never expose secret key to frontend
+        }
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -169,7 +180,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
-        client: client
+        client: client ? {
+          ...client,
+          secretKey: undefined // Never expose secret key
+        } : null
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -201,7 +215,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
-        client: client,
+        client: client ? {
+          ...client,
+          secretKey: undefined // Never expose secret key
+        } : null,
         refreshed: true
       });
     } catch (error) {
@@ -221,7 +238,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
-        client: client
+        client: client ? {
+          ...client,
+          secretKey: undefined // Never expose secret key
+        } : null
       });
     } catch (error) {
       console.error("Auth check error:", error);
@@ -346,7 +366,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const updatedClient = await storage.updateClient(client.id, updates);
-      res.json(updatedClient);
+      res.json({
+        ...updatedClient,
+        secretKey: undefined // Never expose secret key
+      });
     } catch (error) {
       console.error("Settings update error:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -383,18 +406,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Virtual try-on routes with enhanced security
+  // Widget initialization endpoint (secure)
+  app.post("/api/widget/init", async (req, res) => {
+    try {
+      const { publicKey, domain } = req.body;
+      
+      if (!publicKey || !domain) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      // Get client by public key
+      const client = await storage.getClientByPublicKey(publicKey);
+      if (!client || !client.isActive) {
+        return res.status(404).json({ error: "Invalid widget configuration" });
+      }
+
+      // Validate domain if required
+      if (client.requireReferrerCheck && client.allowedDomains && client.allowedDomains.length > 0) {
+        const allowedDomains = client.allowedDomains as string[];
+        if (!SecurityValidator.validateDomain(`https://${domain}`, allowedDomains)) {
+          return res.status(403).json({ error: "Domain not authorized" });
+        }
+      }
+
+      // Generate secure session token
+      const sessionToken = SecurityValidator.generateSessionToken(client.id, domain);
+
+      // Track widget initialization
+      await storage.createAnalytics({
+        clientId: client.id,
+        eventType: "widget_init",
+        metadata: { domain, publicKey },
+        originDomain: domain,
+        userIp: req.ip || req.connection.remoteAddress || 'unknown',
+      });
+
+      res.json({
+        sessionToken,
+        config: {
+          position: client.widgetPosition,
+          theme: client.widgetTheme,
+          maxRequestsPerMinute: client.maxRequestsPerMinute,
+        }
+      });
+    } catch (error) {
+      console.error("Widget init error:", error);
+      res.status(500).json({ error: "Widget initialization failed" });
+    }
+  });
+
+  // Virtual try-on routes with secure token validation
   app.post("/api/try-on", async (req, res) => {
     try {
-      const requestData = tryOnRequestSchema.parse(req.body);
+      const { sessionToken, userImage, clothingImage, clothingImageUrl } = req.body;
       
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Session token required" });
+      }
+
+      // Validate session token
+      const tokenData = SecurityValidator.verifySessionToken(sessionToken);
+      if (!tokenData) {
+        return res.status(401).json({ error: "Invalid or expired session token" });
+      }
+
+      const client = await storage.getClient(tokenData.clientId);
+      if (!client || !client.isActive) {
+        return res.status(404).json({ error: "Invalid client" });
+      }
+
       // Enhanced security validation
-      const securityResult = await SecurityValidator.validateRequest(req, requestData.appId);
+      const securityResult = await SecurityValidator.validateTokenRequest(req, tokenData);
       if (!securityResult.isValid) {
         return res.status(403).json({ error: securityResult.error });
       }
-
-      const client = securityResult.client!;
 
       // Check monthly limits
       const now = new Date();
@@ -418,11 +503,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Determine clothing image source
-      let clothingImageToProcess = requestData.clothingImage;
-      if (requestData.clothingImageUrl && !requestData.clothingImage) {
+      let clothingImageToProcess = clothingImage;
+      if (clothingImageUrl && !clothingImage) {
         try {
           // Convert URL to base64 for processing
-          const response = await fetch(requestData.clothingImageUrl);
+          const response = await fetch(clothingImageUrl);
           const buffer = await response.arrayBuffer();
           const base64 = Buffer.from(buffer).toString('base64');
           const mimeType = response.headers.get('content-type') || 'image/jpeg';
@@ -438,18 +523,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get origin and IP for tracking
-      const origin = req.headers.origin;
       const userIp = req.ip || req.connection.remoteAddress || 'unknown';
 
       // Create try-on session with security tracking
       const session = await storage.createTryOnSession({
         clientId: client.id,
-        userImage: requestData.userImage,
+        userImage: userImage,
         clothingImage: clothingImageToProcess,
-        clothingImageUrl: requestData.clothingImageUrl || null,
+        clothingImageUrl: clothingImageUrl || null,
         resultImage: null,
         status: "processing",
-        originDomain: origin ? new URL(origin).hostname : null,
+        originDomain: tokenData.domain,
         userIp: userIp,
       });
 
@@ -462,16 +546,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventType: "try_on",
         metadata: { 
           sessionId: session.id, 
-          clothingImageUrl: requestData.clothingImageUrl,
-          securityValidated: true
+          clothingImageUrl: clothingImageUrl,
+          securityValidated: true,
+          tokenUsed: true
         },
-        originDomain: origin ? new URL(origin).hostname : null,
+        originDomain: tokenData.domain,
         userIp: userIp,
       });
 
       // Process with Gemini AI
       try {
-        const resultImage = await processWithGemini(requestData.userImage, clothingImageToProcess);
+        const resultImage = await processWithGemini(userImage, clothingImageToProcess);
         
         await storage.updateTryOnSession(session.id, {
           resultImage,
@@ -510,24 +595,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analytics tracking with security validation
+  // Analytics tracking with token validation
   app.post("/api/analytics", async (req, res) => {
     try {
-      const analyticsData = insertAnalyticsSchema.parse(req.body);
+      const { sessionToken, eventType, metadata } = req.body;
       
-      // Validate the client exists and is active
-      const client = await storage.getClient(analyticsData.clientId);
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Session token required" });
+      }
+
+      // Validate session token
+      const tokenData = SecurityValidator.verifySessionToken(sessionToken);
+      if (!tokenData) {
+        return res.status(401).json({ error: "Invalid or expired session token" });
+      }
+
+      const client = await storage.getClient(tokenData.clientId);
       if (!client || !client.isActive) {
         return res.status(404).json({ error: "Invalid client" });
       }
 
       // Add origin and IP tracking
-      const origin = req.headers.origin;
       const userIp = req.ip || req.connection.remoteAddress || 'unknown';
 
       const analytics = await storage.createAnalytics({
-        ...analyticsData,
-        originDomain: origin ? new URL(origin).hostname : null,
+        clientId: client.id,
+        eventType,
+        metadata: metadata || {},
+        originDomain: tokenData.domain,
         userIp: userIp,
       });
       
@@ -538,26 +633,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Widget token generation endpoint (more secure alternative)
-  app.post("/api/widget/token", requireAuth, async (req, res) => {
+  // Regenerate keys endpoint
+  app.post("/api/client/regenerate-keys", requireAuth, async (req, res) => {
     try {
-      const { domain } = req.body;
       const client = await storage.getClientByUserId(req.session.userId!);
-      
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
 
-      // Validate domain is in allowed list
-      const allowedDomains = client.allowedDomains as string[];
-      if (!SecurityValidator.validateDomain(`https://${domain}`, allowedDomains)) {
-        return res.status(403).json({ error: "Domain not allowed" });
-      }
+      // Generate new keys
+      const newSecretKey = crypto.randomBytes(32).toString('hex');
+      const newPublicKey = crypto.randomBytes(16).toString('hex');
 
-      const token = SecurityValidator.generateWidgetToken(client.appId, domain);
-      res.json({ token, expiresIn: 3600 });
+      const updatedClient = await storage.updateClient(client.id, {
+        secretKey: newSecretKey,
+        publicKey: newPublicKey,
+      });
+
+      res.json({
+        ...updatedClient,
+        secretKey: undefined // Never expose secret key
+      });
     } catch (error) {
-      console.error("Token generation error:", error);
+      console.error("Key regeneration error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

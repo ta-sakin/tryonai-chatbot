@@ -1,6 +1,7 @@
 import { Request } from "express";
 import { storage } from "./storage";
 import { Client } from "@shared/schema";
+import crypto from "crypto";
 
 export interface SecurityValidationResult {
   isValid: boolean;
@@ -8,7 +9,16 @@ export interface SecurityValidationResult {
   client?: Client;
 }
 
+export interface TokenData {
+  clientId: number;
+  domain: string;
+  exp: number;
+  iat: number;
+}
+
 export class SecurityValidator {
+  private static readonly SECRET_KEY = process.env.SESSION_SECRET || "default-secret-key";
+
   /**
    * Validate domain origin against allowed domains
    */
@@ -96,7 +106,121 @@ export class SecurityValidator {
   }
 
   /**
-   * Comprehensive security validation
+   * Generate secure session token (like Intercom's approach)
+   */
+  static generateSessionToken(clientId: number, domain: string, expiresIn: number = 3600): string {
+    const payload: TokenData = {
+      clientId,
+      domain,
+      exp: Math.floor(Date.now() / 1000) + expiresIn,
+      iat: Math.floor(Date.now() / 1000)
+    };
+
+    // Create HMAC signature
+    const payloadStr = JSON.stringify(payload);
+    const signature = crypto
+      .createHmac('sha256', this.SECRET_KEY)
+      .update(payloadStr)
+      .digest('hex');
+
+    // Combine payload and signature
+    const token = Buffer.from(JSON.stringify({
+      payload: payloadStr,
+      signature
+    })).toString('base64');
+
+    return token;
+  }
+
+  /**
+   * Verify session token
+   */
+  static verifySessionToken(token: string): TokenData | null {
+    try {
+      const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+      const { payload, signature } = decoded;
+
+      // Verify signature
+      const expectedSignature = crypto
+        .createHmac('sha256', this.SECRET_KEY)
+        .update(payload)
+        .digest('hex');
+
+      if (signature !== expectedSignature) {
+        return null; // Invalid signature
+      }
+
+      const tokenData: TokenData = JSON.parse(payload);
+      
+      // Check expiration
+      if (tokenData.exp < Math.floor(Date.now() / 1000)) {
+        return null; // Token expired
+      }
+
+      return tokenData;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Validate request with token-based security
+   */
+  static async validateTokenRequest(req: Request, tokenData: TokenData): Promise<SecurityValidationResult> {
+    try {
+      const client = await storage.getClient(tokenData.clientId);
+      if (!client || !client.isActive) {
+        return { isValid: false, error: "Invalid client" };
+      }
+
+      const origin = req.headers.origin;
+      const referrer = req.headers.referer;
+      const userIp = req.ip || req.connection.remoteAddress || 'unknown';
+
+      // Validate domain matches token
+      if (origin) {
+        const originDomain = new URL(origin).hostname;
+        if (originDomain !== tokenData.domain) {
+          return { isValid: false, error: "Domain mismatch" };
+        }
+      }
+
+      // Check domain validation if required
+      if (client.requireReferrerCheck && client.allowedDomains && client.allowedDomains.length > 0) {
+        const allowedDomains = client.allowedDomains as string[];
+        
+        // Validate origin
+        if (!this.validateDomain(origin, allowedDomains)) {
+          return { isValid: false, error: "Origin domain not allowed" };
+        }
+
+        // Validate referrer as additional security
+        if (!this.validateReferrer(referrer, allowedDomains)) {
+          return { isValid: false, error: "Referrer domain not allowed" };
+        }
+      }
+
+      // Check rate limiting
+      const rateLimitIdentifier = `${tokenData.domain}:${userIp}`;
+      const isWithinRateLimit = await this.checkRateLimit(
+        client.id, 
+        rateLimitIdentifier, 
+        client.maxRequestsPerMinute
+      );
+
+      if (!isWithinRateLimit) {
+        return { isValid: false, error: "Rate limit exceeded" };
+      }
+
+      return { isValid: true, client };
+    } catch (error) {
+      console.error('Token validation error:', error);
+      return { isValid: false, error: "Token validation failed" };
+    }
+  }
+
+  /**
+   * Comprehensive security validation (legacy method for backward compatibility)
    */
   static async validateRequest(req: Request, appId: string): Promise<SecurityValidationResult> {
     try {

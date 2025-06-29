@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
 interface WidgetConfig {
-  appId: string;
+  publicKey: string;
   position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   theme: 'default' | 'dark' | 'minimal';
   apiUrl: string;
@@ -13,6 +13,7 @@ interface WidgetState {
   clothingImage: string;
   clothingImageUrl: string;
   isProcessing: boolean;
+  sessionToken: string | null;
 }
 
 const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ config }) => {
@@ -21,11 +22,13 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     userImage: '',
     clothingImage: '',
     clothingImageUrl: '',
-    isProcessing: false
+    isProcessing: false,
+    sessionToken: null
   });
   const [showResult, setShowResult] = useState(false);
   const [resultImage, setResultImage] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const positionClasses = {
     'bottom-right': 'bottom-6 right-6',
@@ -40,8 +43,49 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     minimal: 'bg-white border-gray-100 shadow-sm'
   };
 
+  // Initialize widget with secure token
   useEffect(() => {
-    // Auto-detect product images on page load
+    const initializeWidget = async () => {
+      try {
+        const domain = window.location.hostname;
+        const response = await fetch(`${config.apiUrl}/api/widget/init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            publicKey: config.publicKey,
+            domain: domain
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setState(prev => ({ ...prev, sessionToken: data.sessionToken }));
+          setIsInitialized(true);
+          
+          // Update widget config from server
+          if (data.config) {
+            config.position = data.config.position || config.position;
+            config.theme = data.config.theme || config.theme;
+          }
+        } else {
+          const errorData = await response.json();
+          setError(errorData.error || 'Widget initialization failed');
+        }
+      } catch (error) {
+        console.error('Widget initialization error:', error);
+        setError('Failed to initialize widget');
+      }
+    };
+
+    initializeWidget();
+  }, [config]);
+
+  // Auto-detect product images on page load
+  useEffect(() => {
+    if (!isInitialized) return;
+
     const detectProductImage = () => {
       const selectors = [
         'img[src*="product"]',
@@ -56,7 +100,7 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     };
 
     setTimeout(detectProductImage, 1000);
-  }, []);
+  }, [isInitialized]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'user' | 'clothing') => {
     const file = event.target.files?.[0];
@@ -86,6 +130,11 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
   };
 
   const handleTryOn = async () => {
+    if (!state.sessionToken) {
+      setError('Widget not properly initialized. Please refresh the page.');
+      return;
+    }
+
     if (!state.userImage || (!state.clothingImage && !state.clothingImageUrl)) {
       setError('Please upload both your photo and select a clothing item.');
       return;
@@ -101,7 +150,7 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          appId: config.appId,
+          sessionToken: state.sessionToken,
           userImage: state.userImage,
           clothingImage: state.clothingImage || undefined,
           clothingImageUrl: state.clothingImageUrl || undefined
@@ -126,18 +175,24 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     }
   };
 
-  const trackEvent = (eventType: string, metadata: any = {}) => {
-    fetch(`${config.apiUrl}/api/analytics`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        appId: config.appId,
-        eventType,
-        metadata
-      })
-    }).catch(console.error);
+  const trackEvent = async (eventType: string, metadata: any = {}) => {
+    if (!state.sessionToken) return;
+
+    try {
+      await fetch(`${config.apiUrl}/api/analytics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionToken: state.sessionToken,
+          eventType,
+          metadata
+        })
+      });
+    } catch (error) {
+      console.error('Analytics tracking error:', error);
+    }
   };
 
   const clearUserPhoto = () => {
@@ -148,13 +203,22 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     setState(prev => ({ ...prev, clothingImage: '', clothingImageUrl: '' }));
   };
 
+  // Don't render if not initialized or if there's an initialization error
+  if (!isInitialized) {
+    if (error) {
+      console.error('TryOn AI Widget Error:', error);
+      return null; // Fail silently for better UX
+    }
+    return null; // Still initializing
+  }
+
   if (!isExpanded) {
     return (
       <div className={`fixed ${positionClasses[config.position]} z-[10000]`}>
         <button
           onClick={() => {
             setIsExpanded(true);
-            trackEvent('view');
+            trackEvent('widget_opened');
           }}
           className="w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 shadow-2xl flex items-center justify-center transition-all hover:scale-110"
           title="Virtual Try-On"
@@ -183,7 +247,10 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
                 <h3 className="text-lg font-semibold">Virtual Try-On</h3>
               </div>
               <button
-                onClick={() => setIsExpanded(false)}
+                onClick={() => {
+                  setIsExpanded(false);
+                  trackEvent('widget_closed');
+                }}
                 className="text-white hover:bg-white/20 p-1 rounded transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -308,18 +375,18 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
               )}
             </button>
 
-            {/* Tips */}
-            <div className="bg-blue-50 rounded-lg p-3 text-xs">
+            {/* Security Notice */}
+            <div className="bg-green-50 rounded-lg p-3 text-xs">
               <div className="flex items-start space-x-2">
-                <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-blue-600 text-xs">💡</span>
+                <div className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-green-600 text-xs">🔒</span>
                 </div>
-                <div className="text-blue-700">
-                  <p className="font-medium mb-1">For best results:</p>
-                  <ul className="space-y-1 text-blue-600">
-                    <li>• Use a full-body photo</li>
-                    <li>• Stand facing forward</li>
-                    <li>• Plain background works best</li>
+                <div className="text-green-700">
+                  <p className="font-medium mb-1">Secure & Private:</p>
+                  <ul className="space-y-1 text-green-600">
+                    <li>• Your photos are processed securely</li>
+                    <li>• No data is stored permanently</li>
+                    <li>• Domain-verified widget</li>
                   </ul>
                 </div>
               </div>
@@ -387,15 +454,20 @@ declare global {
 
 function initWidget() {
   // Extract config from script tag
-  const scripts = document.querySelectorAll('script[data-app-id]');
+  const scripts = document.querySelectorAll('script[data-public-key]');
   const scriptTag = scripts[scripts.length - 1] as HTMLScriptElement;
   
   const config: WidgetConfig = {
-    appId: scriptTag?.dataset.appId || 'demo',
+    publicKey: scriptTag?.dataset.publicKey || '',
     position: (scriptTag?.dataset.position as any) || 'bottom-right',
     theme: (scriptTag?.dataset.theme as any) || 'default',
     apiUrl: scriptTag?.dataset.apiUrl || window.location.origin
   };
+
+  if (!config.publicKey) {
+    console.error('TryOn AI Widget: Public key is required');
+    return;
+  }
 
   // Create widget container
   const widgetContainer = document.createElement('div');
@@ -418,11 +490,16 @@ if (document.readyState === 'loading') {
 window.TryOnAI = {
   init: (config: Partial<WidgetConfig>) => {
     const fullConfig: WidgetConfig = {
-      appId: config.appId || 'demo',
+      publicKey: config.publicKey || '',
       position: config.position || 'bottom-right',
       theme: config.theme || 'default',
       apiUrl: config.apiUrl || window.location.origin
     };
+
+    if (!fullConfig.publicKey) {
+      console.error('TryOn AI Widget: Public key is required');
+      return;
+    }
 
     const widgetContainer = document.createElement('div');
     widgetContainer.id = 'tryon-ai-widget';

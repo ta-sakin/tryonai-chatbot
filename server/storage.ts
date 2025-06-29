@@ -31,6 +31,7 @@ export interface IStorage {
   getClient(id: number): Promise<Client | undefined>;
   getClientByUserId(userId: number): Promise<Client | undefined>;
   getClientByAppId(appId: string): Promise<Client | undefined>;
+  getClientByPublicKey(publicKey: string): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: number, updates: Partial<Client>): Promise<Client | undefined>;
   getAllClients(): Promise<Client[]>;
@@ -110,6 +111,11 @@ export class DatabaseStorage implements IStorage {
     return client;
   }
 
+  async getClientByPublicKey(publicKey: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.publicKey, publicKey));
+    return client;
+  }
+
   async createClient(insertClient: InsertClient): Promise<Client> {
     const [client] = await db
       .insert(clients)
@@ -144,6 +150,8 @@ export class DatabaseStorage implements IStorage {
         id: clients.id,
         userId: clients.userId,
         appId: clients.appId,
+        secretKey: clients.secretKey,
+        publicKey: clients.publicKey,
         websiteUrl: clients.websiteUrl,
         allowedDomains: clients.allowedDomains,
         widgetPosition: clients.widgetPosition,
