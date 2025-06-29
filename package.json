@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "clean": "rm -rf dist dist-widget node_modules/.vite",
     "dev": "npm run clean && NODE_ENV=development tsx server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --outDir dist/public",
     "build:server": "tsc -p tsconfig.json --outDir dist",
     "start": "node dist/server/index.js",
+    "clean": "node scripts/clean.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
