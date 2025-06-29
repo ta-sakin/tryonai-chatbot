@@ -76,9 +76,9 @@ async function buildWidget() {
     const outputPath = path.join(__dirname, 'public/widget.js');
     fs.writeFileSync(outputPath, finalWidget);
 
-    // Clean up the temporary file
+    // Clean up the temporary file using async method
     if (fs.existsSync(builtWidgetPath)) {
-      fs.unlinkSync(builtWidgetPath);
+      await fs.promises.unlink(builtWidgetPath);
     }
 
     console.log('Widget built successfully at public/widget.js');
