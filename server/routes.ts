@@ -406,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Widget initialization endpoint (secure)
+  // Widget initialization endpoint (secure) with automatic refresh support
   app.post("/api/widget/init", async (req, res) => {
     try {
       const { publicKey, domain } = req.body;
@@ -429,8 +429,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Generate secure session token
-      const sessionToken = SecurityValidator.generateSessionToken(client.id, domain);
+      // Generate secure session token with 1 hour expiry (will auto-refresh)
+      const sessionToken = SecurityValidator.generateSessionToken(client.id, domain, 3600);
 
       // Track widget initialization
       await storage.createAnalytics({

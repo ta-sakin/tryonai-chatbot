@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 
 interface WidgetConfig {
@@ -14,6 +14,7 @@ interface WidgetState {
   clothingImageUrl: string;
   isProcessing: boolean;
   sessionToken: string | null;
+  tokenExpiry: number | null;
 }
 
 const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ config }) => {
@@ -23,12 +24,18 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     clothingImage: '',
     clothingImageUrl: '',
     isProcessing: false,
-    sessionToken: null
+    sessionToken: null,
+    tokenExpiry: null
   });
   const [showResult, setShowResult] = useState(false);
   const [resultImage, setResultImage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Refs for managing intervals and preventing memory leaks
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRefreshingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const positionClasses = {
     'bottom-right': 'bottom-6 right-6',
@@ -43,44 +50,139 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     minimal: 'bg-white border-gray-100 shadow-sm'
   };
 
-  // Initialize widget with secure token
-  useEffect(() => {
-    const initializeWidget = async () => {
-      try {
-        const domain = window.location.hostname;
-        const response = await fetch(`${config.apiUrl}/api/widget/init`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            publicKey: config.publicKey,
-            domain: domain
-          })
-        });
+  // Parse JWT token to get expiry time
+  const parseTokenExpiry = useCallback((token: string): number | null => {
+    try {
+      const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+      const payload = JSON.parse(decoded.payload);
+      return payload.exp * 1000; // Convert to milliseconds
+    } catch (error) {
+      console.error('Failed to parse token expiry:', error);
+      return null;
+    }
+  }, []);
 
-        if (response.ok) {
-          const data = await response.json();
-          setState(prev => ({ ...prev, sessionToken: data.sessionToken }));
-          setIsInitialized(true);
+  // Initialize widget with secure token
+  const initializeWidget = useCallback(async (isRefresh = false) => {
+    if (isRefreshingRef.current && isRefresh) {
+      return; // Prevent concurrent refresh attempts
+    }
+
+    if (isRefresh) {
+      isRefreshingRef.current = true;
+    }
+
+    try {
+      const domain = window.location.hostname;
+      const response = await fetch(`${config.apiUrl}/api/widget/init`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          publicKey: config.publicKey,
+          domain: domain
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const tokenExpiry = parseTokenExpiry(data.sessionToken);
+        
+        if (mountedRef.current) {
+          setState(prev => ({ 
+            ...prev, 
+            sessionToken: data.sessionToken,
+            tokenExpiry: tokenExpiry
+          }));
+          
+          if (!isRefresh) {
+            setIsInitialized(true);
+          }
           
           // Update widget config from server
           if (data.config) {
             config.position = data.config.position || config.position;
             config.theme = data.config.theme || config.theme;
           }
-        } else {
-          const errorData = await response.json();
+
+          // Clear any previous errors on successful refresh
+          if (isRefresh && error) {
+            setError('');
+          }
+        }
+      } else {
+        const errorData = await response.json();
+        if (mountedRef.current) {
           setError(errorData.error || 'Widget initialization failed');
         }
-      } catch (error) {
-        console.error('Widget initialization error:', error);
+      }
+    } catch (error) {
+      console.error('Widget initialization error:', error);
+      if (mountedRef.current) {
         setError('Failed to initialize widget');
       }
-    };
+    } finally {
+      if (isRefresh) {
+        isRefreshingRef.current = false;
+      }
+    }
+  }, [config, parseTokenExpiry, error]);
 
+  // Setup automatic token refresh
+  const setupTokenRefresh = useCallback(() => {
+    // Clear any existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+    }
+
+    if (!state.tokenExpiry) return;
+
+    const now = Date.now();
+    const timeUntilExpiry = state.tokenExpiry - now;
+    
+    // Refresh token 5 minutes before expiry (or immediately if already expired)
+    const refreshTime = Math.max(0, timeUntilExpiry - 5 * 60 * 1000);
+
+    refreshIntervalRef.current = setTimeout(async () => {
+      if (mountedRef.current && !isRefreshingRef.current) {
+        console.log('Auto-refreshing widget token...');
+        await initializeWidget(true);
+        
+        // Setup next refresh cycle
+        if (mountedRef.current) {
+          setupTokenRefresh();
+        }
+      }
+    }, refreshTime);
+
+    console.log(`Token refresh scheduled in ${Math.round(refreshTime / 1000)} seconds`);
+  }, [state.tokenExpiry, initializeWidget]);
+
+  // Initial widget initialization
+  useEffect(() => {
     initializeWidget();
-  }, [config]);
+    
+    return () => {
+      mountedRef.current = false;
+      if (refreshIntervalRef.current) {
+        clearTimeout(refreshIntervalRef.current);
+      }
+    };
+  }, [initializeWidget]);
+
+  // Setup token refresh when token changes
+  useEffect(() => {
+    if (state.sessionToken && state.tokenExpiry) {
+      setupTokenRefresh();
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearTimeout(refreshIntervalRef.current);
+      }
+    };
+  }, [state.sessionToken, state.tokenExpiry, setupTokenRefresh]);
 
   // Auto-detect product images on page load
   useEffect(() => {
@@ -129,6 +231,50 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     reader.readAsDataURL(file);
   };
 
+  // Enhanced API request with automatic token refresh
+  const makeAuthenticatedRequest = useCallback(async (url: string, options: RequestInit): Promise<Response> => {
+    const makeRequest = async (token: string): Promise<Response> => {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Content-Type': 'application/json',
+        },
+        body: options.body ? JSON.stringify({
+          ...JSON.parse(options.body as string),
+          sessionToken: token
+        }) : undefined
+      });
+    };
+
+    // First attempt with current token
+    if (state.sessionToken) {
+      const response = await makeRequest(state.sessionToken);
+      
+      // If token is valid, return response
+      if (response.status !== 401) {
+        return response;
+      }
+      
+      // Token expired, try to refresh
+      console.log('Token expired, attempting refresh...');
+    }
+
+    // Refresh token and retry
+    await initializeWidget(true);
+    
+    // Wait a bit for state to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Get the latest token from state
+    const currentState = state;
+    if (currentState.sessionToken) {
+      return makeRequest(currentState.sessionToken);
+    } else {
+      throw new Error('Failed to refresh authentication token');
+    }
+  }, [state.sessionToken, initializeWidget, state]);
+
   const handleTryOn = async () => {
     if (!state.sessionToken) {
       setError('Widget not properly initialized. Please refresh the page.');
@@ -144,13 +290,9 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     setState(prev => ({ ...prev, isProcessing: true }));
 
     try {
-      const response = await fetch(`${config.apiUrl}/api/try-on`, {
+      const response = await makeAuthenticatedRequest(`${config.apiUrl}/api/try-on`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          sessionToken: state.sessionToken,
           userImage: state.userImage,
           clothingImage: state.clothingImage || undefined,
           clothingImageUrl: state.clothingImageUrl || undefined
@@ -175,25 +317,22 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
     }
   };
 
-  const trackEvent = async (eventType: string, metadata: any = {}) => {
+  const trackEvent = useCallback(async (eventType: string, metadata: any = {}) => {
     if (!state.sessionToken) return;
 
     try {
-      await fetch(`${config.apiUrl}/api/analytics`, {
+      await makeAuthenticatedRequest(`${config.apiUrl}/api/analytics`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          sessionToken: state.sessionToken,
           eventType,
           metadata
         })
       });
     } catch (error) {
       console.error('Analytics tracking error:', error);
+      // Don't show user errors for analytics failures
     }
-  };
+  }, [state.sessionToken, makeAuthenticatedRequest, config.apiUrl]);
 
   const clearUserPhoto = () => {
     setState(prev => ({ ...prev, userImage: '' }));
@@ -382,11 +521,11 @@ const VirtualTryOnStandaloneWidget: React.FC<{ config: WidgetConfig }> = ({ conf
                   <span className="text-green-600 text-xs">🔒</span>
                 </div>
                 <div className="text-green-700">
-                  <p className="font-medium mb-1">Secure & Private:</p>
+                  <p className="font-medium mb-1">Secure & Auto-Refreshing:</p>
                   <ul className="space-y-1 text-green-600">
                     <li>• Your photos are processed securely</li>
-                    <li>• No data is stored permanently</li>
-                    <li>• Domain-verified widget</li>
+                    <li>• Session automatically maintained</li>
+                    <li>• No manual refresh needed</li>
                   </ul>
                 </div>
               </div>
