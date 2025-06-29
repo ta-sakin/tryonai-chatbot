@@ -26,7 +26,7 @@ async function buildWidget() {
             globals: {}
           }
         },
-        outDir: path.resolve(__dirname, 'public'),
+        outDir: path.resolve(__dirname, 'dist-widget'),
         emptyOutDir: false,
         minify: true
       },
@@ -39,7 +39,7 @@ async function buildWidget() {
     });
 
     // Read the built file
-    const builtWidgetPath = path.join(__dirname, 'public/widget.iife.js');
+    const builtWidgetPath = path.join(__dirname, 'dist-widget/widget.iife.js');
     let widgetContent = fs.readFileSync(builtWidgetPath, 'utf8');
 
     // Add CSS styles inline
@@ -71,6 +71,12 @@ async function buildWidget() {
 
     // Combine style injection with widget code
     const finalWidget = styleInjection + '\n' + widgetContent;
+
+    // Ensure the public directory exists
+    const publicDir = path.join(__dirname, 'public');
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+    }
 
     // Write the final widget file
     const outputPath = path.join(__dirname, 'public/widget.js');
