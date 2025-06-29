@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx server/index.ts",
+    "clean": "rm -rf dist dist-widget node_modules/.vite",
+    "dev": "npm run clean && NODE_ENV=development tsx server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --outDir dist/public",
     "build:server": "tsc -p tsconfig.json --outDir dist",
