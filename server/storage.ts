@@ -3,6 +3,7 @@ import {
   clients, 
   tryOnSessions, 
   analytics,
+  rateLimits,
   type User, 
   type InsertUser, 
   type Client, 
@@ -10,7 +11,9 @@ import {
   type TryOnSession, 
   type InsertTryOnSession,
   type Analytics,
-  type InsertAnalytics
+  type InsertAnalytics,
+  type RateLimit,
+  type InsertRateLimit
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte } from "drizzle-orm";
@@ -43,6 +46,11 @@ export interface IStorage {
   // Analytics methods
   createAnalytics(analytics: InsertAnalytics): Promise<Analytics>;
   getAnalyticsByClient(clientId: number): Promise<Analytics[]>;
+  
+  // Rate limiting methods
+  getRateLimitCount(clientId: number, identifier: string, windowStart: Date): Promise<number>;
+  incrementRateLimit(clientId: number, identifier: string): Promise<void>;
+  cleanupOldRateLimits(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -111,6 +119,10 @@ export class DatabaseStorage implements IStorage {
         monthlyTryOnLimit: 100,
         monthlyTryOnCount: 0,
         lastResetDate: new Date(),
+        allowedDomains: [],
+        requireReferrerCheck: true,
+        allowedIpRanges: [],
+        maxRequestsPerMinute: 10,
         updatedAt: new Date(),
       })
       .returning();
@@ -133,12 +145,16 @@ export class DatabaseStorage implements IStorage {
         userId: clients.userId,
         appId: clients.appId,
         websiteUrl: clients.websiteUrl,
+        allowedDomains: clients.allowedDomains,
         widgetPosition: clients.widgetPosition,
         widgetTheme: clients.widgetTheme,
         isActive: clients.isActive,
         monthlyTryOnLimit: clients.monthlyTryOnLimit,
         monthlyTryOnCount: clients.monthlyTryOnCount,
         lastResetDate: clients.lastResetDate,
+        requireReferrerCheck: clients.requireReferrerCheck,
+        allowedIpRanges: clients.allowedIpRanges,
+        maxRequestsPerMinute: clients.maxRequestsPerMinute,
         createdAt: clients.createdAt,
         updatedAt: clients.updatedAt,
         username: users.username,
@@ -225,6 +241,61 @@ export class DatabaseStorage implements IStorage {
       .from(analytics)
       .where(eq(analytics.clientId, clientId))
       .orderBy(desc(analytics.createdAt));
+  }
+
+  async getRateLimitCount(clientId: number, identifier: string, windowStart: Date): Promise<number> {
+    const [result] = await db
+      .select({ count: rateLimits.requestCount })
+      .from(rateLimits)
+      .where(
+        and(
+          eq(rateLimits.clientId, clientId),
+          eq(rateLimits.identifier, identifier),
+          gte(rateLimits.windowStart, windowStart)
+        )
+      );
+    
+    return result?.count || 0;
+  }
+
+  async incrementRateLimit(clientId: number, identifier: string): Promise<void> {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 60000); // 1 minute window
+
+    // Try to update existing record
+    const [existing] = await db
+      .select()
+      .from(rateLimits)
+      .where(
+        and(
+          eq(rateLimits.clientId, clientId),
+          eq(rateLimits.identifier, identifier),
+          gte(rateLimits.windowStart, windowStart)
+        )
+      );
+
+    if (existing) {
+      await db
+        .update(rateLimits)
+        .set({ requestCount: existing.requestCount + 1 })
+        .where(eq(rateLimits.id, existing.id));
+    } else {
+      await db
+        .insert(rateLimits)
+        .values({
+          clientId,
+          identifier,
+          requestCount: 1,
+          windowStart: now,
+        });
+    }
+  }
+
+  async cleanupOldRateLimits(): Promise<void> {
+    const oneHourAgo = new Date(Date.now() - 3600000);
+    await db
+      .delete(rateLimits)
+      .where(gte(rateLimits.windowStart, oneHourAgo));
   }
 }
 

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { SecurityValidator } from "./security";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -119,9 +120,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id,
         appId: utilsGenerateAppId(),
         websiteUrl: null,
+        allowedDomains: [],
         widgetPosition: "bottom-right",
         widgetTheme: "default",
         isActive: true,
+        requireReferrerCheck: true,
+        allowedIpRanges: [],
+        maxRequestsPerMinute: 10,
       });
 
       // Set session with activity tracking
@@ -333,8 +338,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updates = {
         websiteUrl: req.body.websiteUrl,
+        allowedDomains: req.body.allowedDomains || [],
         widgetPosition: req.body.widgetPosition,
         widgetTheme: req.body.widgetTheme,
+        requireReferrerCheck: req.body.requireReferrerCheck !== false,
+        maxRequestsPerMinute: req.body.maxRequestsPerMinute || 10,
       };
 
       const updatedClient = await storage.updateClient(client.id, updates);
@@ -375,17 +383,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Virtual try-on routes with rate limiting
+  // Virtual try-on routes with enhanced security
   app.post("/api/try-on", async (req, res) => {
     try {
       const requestData = tryOnRequestSchema.parse(req.body);
       
-      const client = await storage.getClientByAppId(requestData.appId);
-      if (!client || !client.isActive) {
-        return res.status(404).json({ error: "Invalid or inactive app ID" });
+      // Enhanced security validation
+      const securityResult = await SecurityValidator.validateRequest(req, requestData.appId);
+      if (!securityResult.isValid) {
+        return res.status(403).json({ error: securityResult.error });
       }
 
-      // Check rate limits
+      const client = securityResult.client!;
+
+      // Check monthly limits
       const now = new Date();
       const lastReset = new Date(client.lastResetDate);
       const monthsApart = (now.getFullYear() - lastReset.getFullYear()) * 12 + (now.getMonth() - lastReset.getMonth());
@@ -426,7 +437,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Either clothingImage or clothingImageUrl must be provided" });
       }
 
-      // Create try-on session
+      // Get origin and IP for tracking
+      const origin = req.headers.origin;
+      const userIp = req.ip || req.connection.remoteAddress || 'unknown';
+
+      // Create try-on session with security tracking
       const session = await storage.createTryOnSession({
         clientId: client.id,
         userImage: requestData.userImage,
@@ -434,16 +449,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clothingImageUrl: requestData.clothingImageUrl || null,
         resultImage: null,
         status: "processing",
+        originDomain: origin ? new URL(origin).hostname : null,
+        userIp: userIp,
       });
 
       // Increment try-on count
       await storage.incrementTryOnCount(client.id);
 
-      // Track analytics
+      // Track analytics with security info
       await storage.createAnalytics({
         clientId: client.id,
         eventType: "try_on",
-        metadata: { sessionId: session.id, clothingImageUrl: requestData.clothingImageUrl }
+        metadata: { 
+          sessionId: session.id, 
+          clothingImageUrl: requestData.clothingImageUrl,
+          securityValidated: true
+        },
+        originDomain: origin ? new URL(origin).hostname : null,
+        userIp: userIp,
       });
 
       // Process with Gemini AI
@@ -487,17 +510,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analytics tracking
+  // Analytics tracking with security validation
   app.post("/api/analytics", async (req, res) => {
     try {
       const analyticsData = insertAnalyticsSchema.parse(req.body);
-      const analytics = await storage.createAnalytics(analyticsData);
+      
+      // Validate the client exists and is active
+      const client = await storage.getClient(analyticsData.clientId);
+      if (!client || !client.isActive) {
+        return res.status(404).json({ error: "Invalid client" });
+      }
+
+      // Add origin and IP tracking
+      const origin = req.headers.origin;
+      const userIp = req.ip || req.connection.remoteAddress || 'unknown';
+
+      const analytics = await storage.createAnalytics({
+        ...analyticsData,
+        originDomain: origin ? new URL(origin).hostname : null,
+        userIp: userIp,
+      });
+      
       res.json(analytics);
     } catch (error) {
       console.error("Analytics error:", error);
       res.status(400).json({ error: "Invalid analytics data" });
     }
   });
+
+  // Widget token generation endpoint (more secure alternative)
+  app.post("/api/widget/token", requireAuth, async (req, res) => {
+    try {
+      const { domain } = req.body;
+      const client = await storage.getClientByUserId(req.session.userId!);
+      
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      // Validate domain is in allowed list
+      const allowedDomains = client.allowedDomains as string[];
+      if (!SecurityValidator.validateDomain(`https://${domain}`, allowedDomains)) {
+        return res.status(403).json({ error: "Domain not allowed" });
+      }
+
+      const token = SecurityValidator.generateWidgetToken(client.appId, domain);
+      res.json({ token, expiresIn: 3600 });
+    } catch (error) {
+      console.error("Token generation error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Cleanup old rate limits periodically
+  setInterval(async () => {
+    try {
+      await storage.cleanupOldRateLimits();
+    } catch (error) {
+      console.error("Rate limit cleanup error:", error);
+    }
+  }, 300000); // Every 5 minutes
 
   const httpServer = createServer(app);
   return httpServer;
