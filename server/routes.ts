@@ -24,6 +24,7 @@ declare module 'express-session' {
     clientId: number;
     isAdmin: boolean;
     lastActivity: number;
+    createdAt: number;
   }
 }
 
@@ -50,15 +51,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     rolling: true, // Reset expiration on each request
   }));
 
-  // Session refresh middleware
+  // Enhanced session refresh middleware
   const refreshSession = (req: any, res: any, next: any) => {
     if (req.session.userId) {
       const now = Date.now();
       const lastActivity = req.session.lastActivity || 0;
+      const sessionCreated = req.session.createdAt || 0;
       const timeSinceLastActivity = now - lastActivity;
+      const sessionAge = now - sessionCreated;
       
-      // If more than 30 minutes since last activity, refresh session
-      if (timeSinceLastActivity > 30 * 60 * 1000) {
+      // If session is older than 6 days, force re-authentication
+      if (sessionAge > 6 * 24 * 60 * 60 * 1000) {
+        req.session.destroy((err: any) => {
+          if (err) console.error('Session destruction error:', err);
+        });
+        return res.status(401).json({ error: "Session expired, please login again" });
+      }
+      
+      // Update last activity if more than 1 minute since last update
+      if (timeSinceLastActivity > 60 * 1000) {
         req.session.lastActivity = now;
         req.session.save((err: any) => {
           if (err) {
@@ -138,10 +149,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Set session with activity tracking
+      const now = Date.now();
       req.session.userId = user.id;
       req.session.clientId = client.id;
       req.session.isAdmin = user.isAdmin;
-      req.session.lastActivity = Date.now();
+      req.session.lastActivity = now;
+      req.session.createdAt = now;
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
@@ -165,6 +178,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      if (!user.isActive) {
+        return res.status(401).json({ error: "Account is disabled" });
+      }
+
       const isValidPassword = await bcrypt.compare(loginData.password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -173,10 +190,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const client = await storage.getClientByUserId(user.id);
       
       // Set session with activity tracking
+      const now = Date.now();
       req.session.userId = user.id;
       req.session.clientId = client?.id;
       req.session.isAdmin = user.isAdmin;
-      req.session.lastActivity = Date.now();
+      req.session.lastActivity = now;
+      req.session.createdAt = now;
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email },
@@ -194,24 +213,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
+        console.error("Logout error:", err);
         return res.status(500).json({ error: "Could not log out" });
       }
+      res.clearCookie('connect.sid'); // Clear session cookie
       res.json({ success: true });
     });
   });
 
-  // Session refresh endpoint
+  // Enhanced session refresh endpoint
   app.post("/api/auth/refresh", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
       const client = await storage.getClientByUserId(req.session.userId!);
       
       if (!user) {
+        req.session.destroy((err) => {
+          if (err) console.error('Session destruction error:', err);
+        });
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Update session activity
-      req.session.lastActivity = Date.now();
+      if (!user.isActive) {
+        req.session.destroy((err) => {
+          if (err) console.error('Session destruction error:', err);
+        });
+        return res.status(401).json({ error: "Account is disabled" });
+      }
+
+      // Update session activity and extend expiration
+      const now = Date.now();
+      req.session.lastActivity = now;
+      
+      // Save session to ensure it's persisted
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error during refresh:', err);
+        }
+      });
       
       res.json({
         user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
@@ -219,7 +258,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...client,
           secretKey: undefined // Never expose secret key
         } : null,
-        refreshed: true
+        refreshed: true,
+        sessionInfo: {
+          lastActivity: req.session.lastActivity,
+          createdAt: req.session.createdAt
+        }
       });
     } catch (error) {
       console.error("Session refresh error:", error);
@@ -233,7 +276,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const client = await storage.getClientByUserId(req.session.userId!);
       
       if (!user) {
+        req.session.destroy((err) => {
+          if (err) console.error('Session destruction error:', err);
+        });
         return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.isActive) {
+        req.session.destroy((err) => {
+          if (err) console.error('Session destruction error:', err);
+        });
+        return res.status(401).json({ error: "Account is disabled" });
       }
 
       res.json({
@@ -241,7 +294,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         client: client ? {
           ...client,
           secretKey: undefined // Never expose secret key
-        } : null
+        } : null,
+        sessionInfo: {
+          lastActivity: req.session.lastActivity,
+          createdAt: req.session.createdAt
+        }
       });
     } catch (error) {
       console.error("Auth check error:", error);
@@ -259,15 +316,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid admin credentials" });
       }
 
+      if (!user.isActive) {
+        return res.status(401).json({ error: "Account is disabled" });
+      }
+
       const isValidPassword = await bcrypt.compare(loginData.password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid admin credentials" });
       }
       
       // Set session with activity tracking
+      const now = Date.now();
       req.session.userId = user.id;
       req.session.isAdmin = true;
-      req.session.lastActivity = Date.now();
+      req.session.lastActivity = now;
+      req.session.createdAt = now;
 
       res.json({ 
         user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
