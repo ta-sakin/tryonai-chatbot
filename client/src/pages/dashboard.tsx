@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Copy, Eye, TrendingUp, Users, Activity, Settings, Code, Shield, RefreshCw } from "lucide-react";
+import { Copy, Eye, TrendingUp, Users, Activity, Settings, Code, Shield, RefreshCw, MessageCircle, Bot } from "lucide-react";
 
 export default function Dashboard() {
   const { client } = useAuth();
@@ -25,6 +25,9 @@ export default function Dashboard() {
   const [widgetTheme, setWidgetTheme] = useState(client?.widgetTheme || "default");
   const [requireReferrerCheck, setRequireReferrerCheck] = useState(client?.requireReferrerCheck ?? true);
   const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(client?.maxRequestsPerMinute || 10);
+  const [brandName, setBrandName] = useState("Your Store");
+  const [brandColor, setBrandColor] = useState("#6366F1");
+  const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your virtual styling assistant. I can help you try on clothes virtually!");
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["/api/client/analytics"],
@@ -103,7 +106,25 @@ export default function Dashboard() {
     });
   };
 
-  const getSecureEmbedCode = () => {
+  const getChatbotEmbedCode = () => {
+    if (!client?.publicKey) return "";
+    
+    return `<script>
+  (function() {
+    var script = document.createElement('script');
+    script.src = 'https://cdn.tryonai.com/chatbot.js';
+    script.dataset.publicKey = '${client.publicKey}';
+    script.dataset.position = '${widgetPosition}';
+    script.dataset.theme = '${widgetTheme}';
+    script.dataset.brandName = '${brandName}';
+    script.dataset.brandColor = '${brandColor}';
+    script.dataset.welcomeMessage = '${welcomeMessage}';
+    document.head.appendChild(script);
+  })();
+</script>`;
+  };
+
+  const getWidgetEmbedCode = () => {
     if (!client?.publicKey) return "";
     
     return `<script>
@@ -128,7 +149,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Manage your TryOn AI widgets and view analytics</p>
+          <p className="text-gray-600 mt-2">Manage your TryOn AI widgets and chatbots</p>
         </div>
 
         {/* Stats Overview */}
@@ -211,6 +232,10 @@ export default function Dashboard() {
             <TabsTrigger value="settings" className="flex items-center space-x-2">
               <Settings className="h-4 w-4" />
               <span>Widget Settings</span>
+            </TabsTrigger>
+            <TabsTrigger value="chatbot" className="flex items-center space-x-2">
+              <MessageCircle className="h-4 w-4" />
+              <span>Chatbot Settings</span>
             </TabsTrigger>
             <TabsTrigger value="security" className="flex items-center space-x-2">
               <Shield className="h-4 w-4" />
@@ -318,6 +343,82 @@ export default function Dashboard() {
                   className="w-full"
                 >
                   {updateSettingsMutation.isPending ? "Saving..." : "Save Configuration"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="chatbot">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Bot className="h-5 w-5" />
+                  <span>Chatbot Configuration</span>
+                </CardTitle>
+                <CardDescription>
+                  Customize your AI chatbot's appearance and behavior
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Brand Name */}
+                <div>
+                  <Label htmlFor="brandName">Brand Name</Label>
+                  <Input
+                    id="brandName"
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    placeholder="Your Store Name"
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This will appear in the chatbot header
+                  </p>
+                </div>
+
+                {/* Brand Color */}
+                <div>
+                  <Label htmlFor="brandColor">Brand Color</Label>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Input
+                      id="brandColor"
+                      type="color"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="w-16 h-10 p-1 border rounded"
+                    />
+                    <Input
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      placeholder="#6366F1"
+                      className="flex-1"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Primary color for the chatbot interface
+                  </p>
+                </div>
+
+                {/* Welcome Message */}
+                <div>
+                  <Label htmlFor="welcomeMessage">Welcome Message</Label>
+                  <textarea
+                    id="welcomeMessage"
+                    value={welcomeMessage}
+                    onChange={(e) => setWelcomeMessage(e.target.value)}
+                    placeholder="Hi! I'm your virtual styling assistant..."
+                    className="mt-2 w-full p-3 border border-gray-300 rounded-md resize-none h-20"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    First message customers see when they open the chatbot
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSaveSettings}
+                  disabled={updateSettingsMutation.isPending}
+                  className="w-full"
+                >
+                  {updateSettingsMutation.isPending ? "Saving..." : "Save Chatbot Settings"}
                 </Button>
               </CardContent>
             </Card>
@@ -431,42 +532,68 @@ export default function Dashboard() {
 
           <TabsContent value="integration">
             <div className="space-y-6">
-              {/* Secure Embed Code */}
+              {/* Chatbot Embed Code */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Secure Embed Code</CardTitle>
+                  <CardTitle className="flex items-center space-x-2">
+                    <MessageCircle className="h-5 w-5" />
+                    <span>Chatbot Embed Code</span>
+                  </CardTitle>
                   <CardDescription>
-                    Copy this secure code and paste it into your website's HTML
+                    Copy this code to add the AI chatbot to your website
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-green-400 text-sm">
-                      <code>{getSecureEmbedCode()}</code>
+                      <code>{getChatbotEmbedCode()}</code>
                     </pre>
                   </div>
                   <Button
                     className="mt-4"
-                    onClick={() => copyToClipboard(getSecureEmbedCode(), "Secure embed code")}
+                    onClick={() => copyToClipboard(getChatbotEmbedCode(), "Chatbot embed code")}
                   >
                     <Copy className="h-4 w-4 mr-2" />
-                    Copy Secure Code
+                    Copy Chatbot Code
                   </Button>
                   
-                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                     <div className="flex items-start space-x-2">
-                      <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-green-600 text-xs">🔒</span>
+                      <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-blue-600 text-xs">🤖</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-green-800">Enhanced Security</h4>
-                        <p className="text-sm text-green-700 mt-1">
-                          This code uses your public key and secure token-based authentication. 
-                          Your secret keys are never exposed to the frontend.
+                        <h4 className="font-medium text-blue-800">AI-Powered Chatbot</h4>
+                        <p className="text-sm text-blue-700 mt-1">
+                          This chatbot provides conversational virtual try-on experiences with natural language understanding and product detection.
                         </p>
                       </div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Widget Embed Code */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Simple Widget Embed Code</CardTitle>
+                  <CardDescription>
+                    Alternative simple widget without chat functionality
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-green-400 text-sm">
+                      <code>{getWidgetEmbedCode()}</code>
+                    </pre>
+                  </div>
+                  <Button
+                    className="mt-4"
+                    onClick={() => copyToClipboard(getWidgetEmbedCode(), "Widget embed code")}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Widget Code
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -481,7 +608,7 @@ export default function Dashboard() {
                     <p className="text-sm text-gray-600 mb-4">
                       Add to footer.php or use "Insert Headers and Footers" plugin
                     </p>
-                    <Badge variant="secondary">Paste before &lt;/body&gt;</Badge>
+                    <Badge variant="secondary">Paste before </body></Badge>
                   </CardContent>
                 </Card>
 
@@ -492,9 +619,9 @@ export default function Dashboard() {
                     </div>
                     <h3 className="font-semibold mb-2">Shopify</h3>
                     <p className="text-sm text-gray-600 mb-4">
-                      Go to Online Store &gt; Themes &gt; Edit Code &gt; theme.liquid
+                      Go to Online Store > Themes > Edit Code > theme.liquid
                     </p>
-                    <Badge variant="secondary">Paste before &lt;/body&gt;</Badge>
+                    <Badge variant="secondary">Paste before </body></Badge>
                   </CardContent>
                 </Card>
 
@@ -507,7 +634,7 @@ export default function Dashboard() {
                     <p className="text-sm text-gray-600 mb-4">
                       Paste directly into your HTML file
                     </p>
-                    <Badge variant="secondary">Before &lt;/body&gt; tag</Badge>
+                    <Badge variant="secondary">Before </body> tag</Badge>
                   </CardContent>
                 </Card>
               </div>

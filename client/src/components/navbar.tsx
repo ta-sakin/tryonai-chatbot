@@ -54,6 +54,14 @@ export function Navbar() {
                 >
                   Widget Demo
                 </Link>
+                <Link 
+                  href="/chatbot-demo" 
+                  className={`text-slate-600 hover:text-primary transition-colors ${
+                    location === "/chatbot-demo" ? "text-primary font-medium" : ""
+                  }`}
+                >
+                  Chatbot Demo
+                </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -80,6 +88,22 @@ export function Navbar() {
               </>
             ) : (
               <>
+                <Link 
+                  href="/widget-demo" 
+                  className={`text-slate-600 hover:text-primary transition-colors ${
+                    location === "/widget-demo" ? "text-primary font-medium" : ""
+                  }`}
+                >
+                  Widget Demo
+                </Link>
+                <Link 
+                  href="/chatbot-demo" 
+                  className={`text-slate-600 hover:text-primary transition-colors ${
+                    location === "/chatbot-demo" ? "text-primary font-medium" : ""
+                  }`}
+                >
+                  Chatbot Demo
+                </Link>
                 <Link href="/login">
                   <Button variant="ghost">Sign In</Button>
                 </Link>
