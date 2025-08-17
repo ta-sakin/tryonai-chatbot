@@ -1,6 +1,12 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -57,7 +63,7 @@ export function VirtualTryOnWidget({
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const [recentTryOns, setRecentTryOns] = useState<
-    { userImg: string; clothingImg: string; resultImg: string }[]
+    { userImage: string; clothingImage: string; resultImage: string }[]
   >([]);
   const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
   const userFileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +102,9 @@ export function VirtualTryOnWidget({
       }
 
       const result = await response.json();
+      if (!result.success) {
+        throw result?.error || result?.message;
+      }
       console.log({ result });
       setResultImage(result.resultImage);
       setShowResult(true);
@@ -104,11 +113,11 @@ export function VirtualTryOnWidget({
         JSON.stringify({
           recentTryOn: [
             {
-              resultImage,
+              resultImage: result.resultImage,
               userImage,
               clothingImage,
             },
-            ...recentTryOns,
+            ...recentTryOns.slice(0, 4),
           ],
         })
       );
@@ -127,7 +136,18 @@ export function VirtualTryOnWidget({
       setIsProcessing(false);
     }
   };
+  const clearAll = () => {
+    localStorage.removeItem("recentTryOn");
+    setRecentTryOns([]);
+  };
 
+  useEffect(() => {
+    const history = localStorage.getItem("recentTryOn");
+    if (history) {
+      const images = JSON.parse(history);
+      setRecentTryOns(images.recentTryOn);
+    }
+  }, []);
   const handleFileUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
     type: "user" | "clothing"
@@ -636,19 +656,27 @@ export function VirtualTryOnWidget({
                       >
                         <div className="grid grid-cols-3 gap-2">
                           <img
-                            src={tryOn.userImg}
+                            src={tryOn.userImage}
+                            alt="User"
+                            className="h-20 w-full object-cover rounded"
+                          />
+                          <img
+                            src={tryOn.clothingImage}
                             alt="User"
                             className="h-20 w-full object-cover rounded"
                           />
 
                           <img
-                            src={tryOn.resultImg}
+                            src={tryOn.resultImage}
                             alt="Result"
                             className="h-20 w-full object-cover rounded"
                           />
                         </div>
                       </div>
                     ))}
+                    <Button variant="outline" size="sm" onClick={clearAll}>
+                      Clear All
+                    </Button>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
