@@ -1,47 +1,92 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@apollo/client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { useAuth } from "@/hooks/use-auth";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { Copy, Eye, TrendingUp, Users, Activity, Settings, Code, Shield, RefreshCw } from "lucide-react";
-
+import { GET_CLIENT_ANALYTICS_SUMMARY } from "@/graphql/queries";
+import {
+  UPDATE_CLIENT,
+  REGENERATE_CLIENT_KEYS,
+  CREATE_CLIENT,
+} from "@/graphql/mutations";
+import {
+  Copy,
+  Eye,
+  TrendingUp,
+  Users,
+  Activity,
+  Settings,
+  Code,
+  Shield,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
+import { genereateRandomBytes } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 export default function Dashboard() {
-  const { client } = useAuth();
+  const {
+    client,
+    isLoading: userLoading,
+    user,
+    refetchClient,
+  } = useCurrentUser();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  const [websiteUrl, setWebsiteUrl] = useState(client?.websiteUrl || "");
-  const [allowedDomains, setAllowedDomains] = useState<string[]>(client?.allowedDomains || []);
+
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
-  const [widgetPosition, setWidgetPosition] = useState(client?.widgetPosition || "bottom-right");
-  const [widgetTheme, setWidgetTheme] = useState(client?.widgetTheme || "default");
-  const [requireReferrerCheck, setRequireReferrerCheck] = useState(client?.requireReferrerCheck ?? true);
-  const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(client?.maxRequestsPerMinute || 10);
+  const [widgetPosition, setWidgetPosition] = useState("bottom-right");
+  const [widgetTheme, setWidgetTheme] = useState("default");
+  const [requireReferrerCheck, setRequireReferrerCheck] = useState(true);
+  const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(10);
 
-  const { data: analytics, isLoading } = useQuery({
-    queryKey: ["/api/client/analytics"],
-    enabled: !!client,
-  });
+  // Update state when client data changes
+  useEffect(() => {
+    if (client) {
+      setWebsiteUrl(client.website_url || "");
+      setAllowedDomains(client.allowed_domains || []);
+      setWidgetPosition(client.widget_position || "bottom-right");
+      setWidgetTheme(client.widget_theme || "default");
+      setRequireReferrerCheck(client.require_referrer_check ?? true);
+      setMaxRequestsPerMinute(client.max_requests_per_minute || 10);
+    }
+  }, [client]);
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: async (settings: any) => {
-      const response = await apiRequest("PUT", "/api/client/settings", settings);
-      return response.json();
-    },
-    onSuccess: () => {
+  const { data: analyticsData, loading: analyticsLoading } = useQuery(
+    GET_CLIENT_ANALYTICS_SUMMARY,
+    {
+      variables: { clientId: client?.id },
+      skip: !client?.id,
+    }
+  );
+
+  const [createClientMutation, { loading: creating }] =
+    useMutation(CREATE_CLIENT);
+  const [updateClient] = useMutation(UPDATE_CLIENT, {
+    onCompleted: () => {
       toast({
         title: "Settings updated",
         description: "Your widget settings have been saved successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
     onError: () => {
       toast({
@@ -52,19 +97,16 @@ export default function Dashboard() {
     },
   });
 
-  const regenerateKeysMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/client/regenerate-keys");
-      return response.json();
-    },
-    onSuccess: () => {
+  const [regenerateKeys] = useMutation(REGENERATE_CLIENT_KEYS, {
+    onCompleted: () => {
       toast({
         title: "Keys regenerated",
-        description: "New security keys have been generated. Please update your widget code.",
+        description:
+          "New security keys have been generated. Please update your widget code.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
-    onError: () => {
+    onError: (error) => {
+      console.log("error", error);
       toast({
         title: "Regeneration failed",
         description: "Something went wrong. Please try again.",
@@ -74,13 +116,20 @@ export default function Dashboard() {
   });
 
   const handleSaveSettings = () => {
-    updateSettingsMutation.mutate({
-      websiteUrl,
-      allowedDomains,
-      widgetPosition,
-      widgetTheme,
-      requireReferrerCheck,
-      maxRequestsPerMinute,
+    if (!client?.id) return;
+
+    updateClient({
+      variables: {
+        id: client.id,
+        changes: {
+          website_url: websiteUrl,
+          allowed_domains: allowedDomains,
+          widget_position: widgetPosition,
+          widget_theme: widgetTheme,
+          require_referrer_check: requireReferrerCheck,
+          max_requests_per_minute: maxRequestsPerMinute,
+        },
+      },
     });
   };
 
@@ -92,7 +141,7 @@ export default function Dashboard() {
   };
 
   const removeDomain = (domain: string) => {
-    setAllowedDomains(allowedDomains.filter(d => d !== domain));
+    setAllowedDomains(allowedDomains.filter((d) => d !== domain));
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -103,14 +152,31 @@ export default function Dashboard() {
     });
   };
 
+  const handleRegenerateKeys = async () => {
+    if (!client?.id) return;
+
+    const newPublicKey = `pk_${genereateRandomBytes()}`;
+    const newSecretKey = `sk_${genereateRandomBytes(36)}`;
+
+    const res = await regenerateKeys({
+      variables: {
+        id: client.id,
+        publicKey: newPublicKey,
+        secretKey: newSecretKey,
+      },
+    });
+    console.log(res);
+    await refetchClient();
+  };
+
   const getSecureEmbedCode = () => {
-    if (!client?.publicKey) return "";
-    
+    if (!client?.public_key) return "";
+
     return `<script>
   (function() {
     var script = document.createElement('script');
     script.src = 'https://cdn.tryonai.com/widget.js';
-    script.dataset.publicKey = '${client.publicKey}';
+    script.dataset.appId = '${client.app_id}';
     script.dataset.position = '${widgetPosition}';
     script.dataset.theme = '${widgetTheme}';
     document.head.appendChild(script);
@@ -118,8 +184,70 @@ export default function Dashboard() {
 </script>`;
   };
 
+  const createClient = async () => {
+    try {
+      const userId = user?.id;
+      const appId = `app_${genereateRandomBytes()}`;
+      const publicKey = `pk_${genereateRandomBytes()}`;
+      const secretKey = `sk_${genereateRandomBytes(32)}`;
+      const object = {
+        user_id: userId,
+        app_id: appId,
+        secret_key: secretKey,
+        public_key: publicKey,
+        website_url: websiteUrl || null,
+        allowed_domains: allowedDomains,
+        widget_position: "bottom-right",
+        widget_theme: "default",
+        is_active: true,
+        monthly_try_on_limit: 100,
+        monthly_try_on_count: 0,
+        require_referrer_check: true,
+        max_requests_per_minute: 10,
+      };
+      const res = await createClientMutation({
+        variables: {
+          objects: [object],
+        },
+      });
+      if (res) {
+        toast({
+          title: "Client created",
+        });
+        console.log(res);
+        refetchClient();
+      }
+    } catch (error) {
+      console.log("error", error);
+    }
+  };
+  if (userLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
   if (!client) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            No Client Found
+          </h2>
+          {/* <p className="text-gray-600">
+            Please contact support to set up your account.
+          </p> */}
+          <div className="mt-4">
+            <Button onClick={createClient} disabled={creating}>
+              Create
+              {creating && <Spinner />}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -128,7 +256,9 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Manage your TryOn AI widgets and view analytics</p>
+          <p className="text-gray-600 mt-2">
+            Manage your TryOn AI widgets and view analytics
+          </p>
         </div>
 
         {/* Stats Overview */}
@@ -142,9 +272,13 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Views</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Views
+                  </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {isLoading ? "..." : analytics?.totalViews || 0}
+                    {analyticsLoading
+                      ? "..."
+                      : analyticsData?.total_views?.aggregate?.count || 0}
                   </p>
                 </div>
               </div>
@@ -162,7 +296,9 @@ export default function Dashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Try-Ons</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {isLoading ? "..." : analytics?.tryOns || 0}
+                    {analyticsLoading
+                      ? "..."
+                      : analyticsData?.try_ons?.aggregate?.count || 0}
                   </p>
                 </div>
               </div>
@@ -178,9 +314,13 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Conversions</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Conversions
+                  </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {isLoading ? "..." : analytics?.conversions || 0}
+                    {analyticsLoading
+                      ? "..."
+                      : analyticsData?.conversions?.aggregate?.count || 0}
                   </p>
                 </div>
               </div>
@@ -196,9 +336,22 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Conv. Rate</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Conv. Rate
+                  </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {isLoading ? "..." : `${analytics?.conversionRate || 0}%`}
+                    {analyticsLoading
+                      ? "..."
+                      : `${
+                          analyticsData?.conversions?.aggregate?.count &&
+                          analyticsData?.total_views?.aggregate?.count
+                            ? Math.round(
+                                (analyticsData.conversions.aggregate.count /
+                                  analyticsData.total_views.aggregate.count) *
+                                  100
+                              )
+                            : 0
+                        }%`}
                   </p>
                 </div>
               </div>
@@ -206,19 +359,28 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <Tabs defaultValue="settings" className="space-y-6">
+        <Tabs defaultValue="integration" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="settings" className="flex items-center space-x-2">
+            <TabsTrigger
+              value="integration"
+              className="flex items-center space-x-2"
+            >
+              <Code className="h-4 w-4" />
+              <span>Integration</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              className="flex items-center space-x-2"
+            >
               <Settings className="h-4 w-4" />
               <span>Widget Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="security" className="flex items-center space-x-2">
+            <TabsTrigger
+              value="security"
+              className="flex items-center space-x-2"
+            >
               <Shield className="h-4 w-4" />
               <span>Security</span>
-            </TabsTrigger>
-            <TabsTrigger value="integration" className="flex items-center space-x-2">
-              <Code className="h-4 w-4" />
-              <span>Integration</span>
             </TabsTrigger>
           </TabsList>
 
@@ -236,14 +398,16 @@ export default function Dashboard() {
                   <Label className="text-sm font-medium">Your Public Key</Label>
                   <div className="flex items-center space-x-2 mt-2">
                     <Input
-                      value={client.publicKey}
+                      value={client.public_key}
                       readOnly
                       className="font-mono text-sm bg-gray-50"
                     />
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copyToClipboard(client.publicKey, "Public Key")}
+                      onClick={() =>
+                        copyToClipboard(client.public_key, "Public Key")
+                      }
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -268,7 +432,10 @@ export default function Dashboard() {
                 {/* Widget Position */}
                 <div>
                   <Label>Widget Position</Label>
-                  <Select value={widgetPosition} onValueChange={setWidgetPosition}>
+                  <Select
+                    value={widgetPosition}
+                    onValueChange={setWidgetPosition}
+                  >
                     <SelectTrigger className="mt-2">
                       <SelectValue />
                     </SelectTrigger>
@@ -286,9 +453,17 @@ export default function Dashboard() {
                   <Label>Widget Theme</Label>
                   <div className="grid grid-cols-3 gap-4 mt-2">
                     {[
-                      { value: "default", name: "Default", color: "bg-primary" },
+                      {
+                        value: "default",
+                        name: "Default",
+                        color: "bg-primary",
+                      },
                       { value: "dark", name: "Dark", color: "bg-gray-800" },
-                      { value: "minimal", name: "Minimal", color: "bg-white border" },
+                      {
+                        value: "minimal",
+                        name: "Minimal",
+                        color: "bg-white border",
+                      },
                     ].map((theme) => (
                       <label key={theme.value} className="cursor-pointer">
                         <input
@@ -299,25 +474,27 @@ export default function Dashboard() {
                           onChange={(e) => setWidgetTheme(e.target.value)}
                           className="sr-only"
                         />
-                        <div className={`border-2 rounded-lg p-4 text-center transition-colors ${
-                          widgetTheme === theme.value
-                            ? "border-primary bg-primary/5"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}>
-                          <div className={`w-8 h-8 ${theme.color} rounded mx-auto mb-2`}></div>
-                          <span className="text-sm font-medium">{theme.name}</span>
+                        <div
+                          className={`border-2 rounded-lg p-4 text-center transition-colors ${
+                            widgetTheme === theme.value
+                              ? "border-primary bg-primary/5"
+                              : "border-gray-300 hover:border-gray-400"
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 ${theme.color} rounded mx-auto mb-2`}
+                          ></div>
+                          <span className="text-sm font-medium">
+                            {theme.name}
+                          </span>
                         </div>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <Button
-                  onClick={handleSaveSettings}
-                  disabled={updateSettingsMutation.isPending}
-                  className="w-full"
-                >
-                  {updateSettingsMutation.isPending ? "Saving..." : "Save Configuration"}
+                <Button onClick={handleSaveSettings} className="w-full">
+                  Save Configuration
                 </Button>
               </CardContent>
             </Card>
@@ -343,32 +520,36 @@ export default function Dashboard() {
                         <span className="text-yellow-600 text-xs">⚠️</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-yellow-800">Secure Implementation</h4>
+                        <h4 className="font-medium text-yellow-800">
+                          Secure Implementation
+                        </h4>
                         <p className="text-sm text-yellow-700 mt-1">
-                          Your widget now uses secure token-based authentication. Only your public key is exposed to the frontend.
+                          Your widget now uses secure token-based
+                          authentication. Only your public key is exposed to the
+                          frontend.
                         </p>
                       </div>
                     </div>
                   </div>
 
                   <Button
-                    onClick={() => regenerateKeysMutation.mutate()}
-                    disabled={regenerateKeysMutation.isPending}
+                    onClick={handleRegenerateKeys}
                     variant="outline"
                     className="w-full"
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    {regenerateKeysMutation.isPending ? "Regenerating..." : "Regenerate Security Keys"}
+                    Regenerate Security Keys
                   </Button>
                 </CardContent>
               </Card>
 
               {/* Domain Security */}
-              <Card>
+              {/* <Card>
                 <CardHeader>
                   <CardTitle>Allowed Domains</CardTitle>
                   <CardDescription>
-                    Restrict widget usage to specific domains for enhanced security
+                    Restrict widget usage to specific domains for enhanced
+                    security
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -377,7 +558,7 @@ export default function Dashboard() {
                       value={newDomain}
                       onChange={(e) => setNewDomain(e.target.value)}
                       placeholder="example.com or *.example.com"
-                      onKeyPress={(e) => e.key === 'Enter' && addDomain()}
+                      onKeyDown={(e) => e.key === "Enter" && addDomain()}
                     />
                     <Button onClick={addDomain} disabled={!newDomain}>
                       Add
@@ -386,7 +567,10 @@ export default function Dashboard() {
 
                   <div className="space-y-2">
                     {allowedDomains.map((domain, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
                         <span className="text-sm font-mono">{domain}</span>
                         <Button
                           variant="ghost"
@@ -402,8 +586,12 @@ export default function Dashboard() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="referrer-check">Require Referrer Validation</Label>
-                      <p className="text-sm text-gray-500">Additional security layer using referrer headers</p>
+                      <Label htmlFor="referrer-check">
+                        Require Referrer Validation
+                      </Label>
+                      <p className="text-sm text-gray-500">
+                        Additional security layer using referrer headers
+                      </p>
                     </div>
                     <Switch
                       id="referrer-check"
@@ -418,14 +606,16 @@ export default function Dashboard() {
                       id="rate-limit"
                       type="number"
                       value={maxRequestsPerMinute}
-                      onChange={(e) => setMaxRequestsPerMinute(parseInt(e.target.value) || 10)}
+                      onChange={(e) =>
+                        setMaxRequestsPerMinute(parseInt(e.target.value) || 10)
+                      }
                       min="1"
                       max="100"
                       className="mt-2"
                     />
                   </div>
                 </CardContent>
-              </Card>
+              </Card> */}
             </div>
           </TabsContent>
 
@@ -447,22 +637,27 @@ export default function Dashboard() {
                   </div>
                   <Button
                     className="mt-4"
-                    onClick={() => copyToClipboard(getSecureEmbedCode(), "Secure embed code")}
+                    onClick={() =>
+                      copyToClipboard(getSecureEmbedCode(), "Secure embed code")
+                    }
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     Copy Secure Code
                   </Button>
-                  
+
                   <div className="mt-4 p-3 bg-green-50 rounded-lg">
                     <div className="flex items-start space-x-2">
                       <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-green-600 text-xs">🔒</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-green-800">Enhanced Security</h4>
+                        <h4 className="font-medium text-green-800">
+                          Enhanced Security
+                        </h4>
                         <p className="text-sm text-green-700 mt-1">
-                          This code uses your public key and secure token-based authentication. 
-                          Your secret keys are never exposed to the frontend.
+                          This code uses your public key and secure token-based
+                          authentication. Your secret keys are never exposed to
+                          the frontend.
                         </p>
                       </div>
                     </div>
@@ -479,9 +674,12 @@ export default function Dashboard() {
                     </div>
                     <h3 className="font-semibold mb-2">WordPress</h3>
                     <p className="text-sm text-gray-600 mb-4">
-                      Add to footer.php or use "Insert Headers and Footers" plugin
+                      Add to footer.php or use "Insert Headers and Footers"
+                      plugin
                     </p>
-                    <Badge variant="secondary">Paste before &lt;/body&gt;</Badge>
+                    <Badge variant="secondary">
+                      Paste before &lt;/body&gt;
+                    </Badge>
                   </CardContent>
                 </Card>
 
@@ -492,9 +690,12 @@ export default function Dashboard() {
                     </div>
                     <h3 className="font-semibold mb-2">Shopify</h3>
                     <p className="text-sm text-gray-600 mb-4">
-                      Go to Online Store &gt; Themes &gt; Edit Code &gt; theme.liquid
+                      Go to Online Store &gt; Themes &gt; Edit Code &gt;
+                      theme.liquid
                     </p>
-                    <Badge variant="secondary">Paste before &lt;/body&gt;</Badge>
+                    <Badge variant="secondary">
+                      Paste before &lt;/body&gt;
+                    </Badge>
                   </CardContent>
                 </Card>
 

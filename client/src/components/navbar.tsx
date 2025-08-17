@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,11 +8,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useSignOut } from "@nhost/react";
+import { getAvatarUrl } from "@/lib/utils";
 
 export function Navbar() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useCurrentUser();
+  const { signOut: logout } = useSignOut();
   const [location] = useLocation();
 
+  console.log(user, { isAuthenticated });
   const handleLogout = async () => {
     try {
       await logout();
@@ -38,41 +42,61 @@ export function Navbar() {
           <nav className="hidden md:flex items-center space-x-8">
             {isAuthenticated ? (
               <>
-                <Link 
-                  href="/dashboard" 
+                <Link
+                  href="/dashboard"
                   className={`text-slate-600 hover:text-primary transition-colors ${
                     location === "/dashboard" ? "text-primary font-medium" : ""
                   }`}
                 >
                   Dashboard
                 </Link>
-                <Link 
-                  href="/widget-demo" 
+                <Link
+                  href="/widget-demo"
                   className={`text-slate-600 hover:text-primary transition-colors ${
-                    location === "/widget-demo" ? "text-primary font-medium" : ""
+                    location === "/widget-demo"
+                      ? "text-primary font-medium"
+                      : ""
                   }`}
                 >
                   Widget Demo
                 </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Button
+                      variant="ghost"
+                      className="relative h-8 w-8 rounded-full"
+                    >
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          {user?.username?.charAt(0).toUpperCase() || "U"}
+                        <AvatarImage
+                          src={getAvatarUrl(user?.avatarUrl)}
+                          alt={user?.displayName}
+                        />
+
+                        <AvatarFallback className="text-black">
+                          {user?.displayName?.charAt(0).toUpperCase() || "U"}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <DropdownMenuItem className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user?.username}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                      </div>
-                    </DropdownMenuItem>
+                    <Link href="/profile">
+                      <DropdownMenuItem className="font-normal cursor-pointer">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {user?.displayName}
+                          </p>
+                          <p className="text-xs leading-none">{user?.email}</p>
+                        </div>
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
+                    {/* <Link href="/profile">
+                      <DropdownMenuItem>Profile Settings</DropdownMenuItem>
+                    </Link> */}
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={handleLogout}
+                    >
                       Log out
                     </DropdownMenuItem>
                   </DropdownMenuContent>

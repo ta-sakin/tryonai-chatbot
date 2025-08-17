@@ -1,687 +1,363 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { SecurityValidator } from "./security";
-import bcrypt from "bcryptjs";
-import session from "express-session";
-import connectPg from "connect-pg-simple";
+// import { storage } from "./storage";
+import { getClientByAppId, SecurityValidator } from "./security";
+import { GoogleGenAI, Modality } from "@google/genai";
+
 import crypto from "crypto";
-import { 
-  insertUserSchema, 
-  insertClientSchema,
-  loginSchema,
-  tryOnRequestSchema,
-  insertTryOnSessionSchema,
-  insertAnalyticsSchema,
-  adminLoginSchema
-} from "@shared/schema";
+import "dotenv/config";
 import { generateAppId as utilsGenerateAppId, parseBase64Image } from "./utils";
-
-// Extend session data
-declare module 'express-session' {
-  interface SessionData {
-    userId: number;
-    clientId: number;
-    isAdmin: boolean;
-    lastActivity: number;
-  }
-}
-
+import { nhost } from "../shared/nhost";
+nhost.graphql.setHeaders({
+  "x-hasura-role": "admin",
+  "x-hasura-admin-secret": process.env.NHOST_ADMIN_SECRET!,
+});
 // Gemini AI integration
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
-
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Session middleware with PostgreSQL store
-  const pgStore = connectPg(session);
-  app.use(session({
-    store: new pgStore({
-      conString: process.env.DATABASE_URL,
-      createTableIfMissing: true,
-      tableName: 'session'
-    }),
-    secret: process.env.SESSION_SECRET || "default-secret-key",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { 
-      secure: false, 
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      httpOnly: true
-    },
-    rolling: true, // Reset expiration on each request
-  }));
-
-  // Session refresh middleware
-  const refreshSession = (req: any, res: any, next: any) => {
-    if (req.session.userId) {
-      const now = Date.now();
-      const lastActivity = req.session.lastActivity || 0;
-      const timeSinceLastActivity = now - lastActivity;
-      
-      // If more than 30 minutes since last activity, refresh session
-      if (timeSinceLastActivity > 30 * 60 * 1000) {
-        req.session.lastActivity = now;
-        req.session.save((err: any) => {
-          if (err) {
-            console.error('Session save error:', err);
-          }
-        });
-      }
-    }
-    next();
-  };
-
-  // Apply session refresh to all routes
-  app.use(refreshSession);
-
-  // Authentication middleware
-  const requireAuth = (req: any, res: any, next: any) => {
-    if (!req.session.userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-    
-    // Update last activity
-    req.session.lastActivity = Date.now();
-    next();
-  };
-
-  const requireAdmin = (req: any, res: any, next: any) => {
-    if (!req.session.userId || !req.session.isAdmin) {
-      return res.status(403).json({ error: "Admin access required" });
-    }
-    
-    // Update last activity
-    req.session.lastActivity = Date.now();
-    next();
-  };
-
-  // Auth routes
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(userData.email);
-      if (existingUser) {
-        return res.status(400).json({ error: "User already exists" });
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
-      // Create user
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword,
-        isActive: true,
-        isAdmin: false,
-      });
-
-      // Generate secure keys
-      const appId = utilsGenerateAppId();
-      const secretKey = crypto.randomBytes(32).toString('hex');
-      const publicKey = crypto.randomBytes(16).toString('hex');
-
-      // Create client with secure keys
-      const client = await storage.createClient({
-        userId: user.id,
-        appId: appId,
-        secretKey: secretKey,
-        publicKey: publicKey,
-        websiteUrl: null,
-        allowedDomains: [],
-        widgetPosition: "bottom-right",
-        widgetTheme: "default",
-        isActive: true,
-        requireReferrerCheck: true,
-        allowedIpRanges: [],
-        maxRequestsPerMinute: 10,
-      });
-
-      // Set session with activity tracking
-      req.session.userId = user.id;
-      req.session.clientId = client.id;
-      req.session.isAdmin = user.isAdmin;
-      req.session.lastActivity = Date.now();
-
-      res.json({ 
-        user: { id: user.id, username: user.username, email: user.email },
-        client: {
-          ...client,
-          secretKey: undefined // Never expose secret key to frontend
-        }
-      });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(400).json({ error: "Invalid data provided" });
-    }
-  });
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const loginData = loginSchema.parse(req.body);
-      
-      const user = await storage.getUserByEmail(loginData.email);
-      if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-
-      const isValidPassword = await bcrypt.compare(loginData.password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-
-      const client = await storage.getClientByUserId(user.id);
-      
-      // Set session with activity tracking
-      req.session.userId = user.id;
-      req.session.clientId = client?.id;
-      req.session.isAdmin = user.isAdmin;
-      req.session.lastActivity = Date.now();
-
-      res.json({ 
-        user: { id: user.id, username: user.username, email: user.email },
-        client: client ? {
-          ...client,
-          secretKey: undefined // Never expose secret key
-        } : null
-      });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(400).json({ error: "Invalid data provided" });
-    }
-  });
-
-  app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Could not log out" });
-      }
-      res.json({ success: true });
-    });
-  });
-
-  // Session refresh endpoint
-  app.post("/api/auth/refresh", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      const client = await storage.getClientByUserId(req.session.userId!);
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Update session activity
-      req.session.lastActivity = Date.now();
-      
-      res.json({
-        user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
-        client: client ? {
-          ...client,
-          secretKey: undefined // Never expose secret key
-        } : null,
-        refreshed: true
-      });
-    } catch (error) {
-      console.error("Session refresh error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.get("/api/auth/me", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      const client = await storage.getClientByUserId(req.session.userId!);
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({
-        user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin },
-        client: client ? {
-          ...client,
-          secretKey: undefined // Never expose secret key
-        } : null
-      });
-    } catch (error) {
-      console.error("Auth check error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Admin routes
-  app.post("/api/admin/login", async (req, res) => {
-    try {
-      const loginData = adminLoginSchema.parse(req.body);
-      
-      const user = await storage.getUserByEmail(loginData.email);
-      if (!user || !user.isAdmin) {
-        return res.status(401).json({ error: "Invalid admin credentials" });
-      }
-
-      const isValidPassword = await bcrypt.compare(loginData.password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid admin credentials" });
-      }
-      
-      // Set session with activity tracking
-      req.session.userId = user.id;
-      req.session.isAdmin = true;
-      req.session.lastActivity = Date.now();
-
-      res.json({ 
-        user: { id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin }
-      });
-    } catch (error) {
-      console.error("Admin login error:", error);
-      res.status(400).json({ error: "Invalid data provided" });
-    }
-  });
-
-  app.get("/api/admin/dashboard", requireAdmin, async (req, res) => {
-    try {
-      const users = await storage.getAllUsers();
-      const clients = await storage.getAllClients();
-      
-      const totalUsers = users.length;
-      const activeUsers = users.filter(u => u.isActive).length;
-      const totalWidgets = clients.length;
-      const activeWidgets = clients.filter(c => c.isActive).length;
-
-      res.json({
-        stats: {
-          totalUsers,
-          activeUsers,
-          totalWidgets,
-          activeWidgets
-        },
-        users: users.slice(0, 10), // Latest 10 users
-        clients: clients.slice(0, 10) // Latest 10 clients
-      });
-    } catch (error) {
-      console.error("Admin dashboard error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.get("/api/admin/users", requireAdmin, async (req, res) => {
-    try {
-      const users = await storage.getAllUsers();
-      res.json(users);
-    } catch (error) {
-      console.error("Admin users error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.put("/api/admin/users/:id/toggle", requireAdmin, async (req, res) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const updatedUser = await storage.updateUser(userId, { isActive: !user.isActive });
-      res.json(updatedUser);
-    } catch (error) {
-      console.error("Admin toggle user error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.put("/api/admin/clients/:id/toggle", requireAdmin, async (req, res) => {
-    try {
-      const clientId = parseInt(req.params.id);
-      const client = await storage.getClient(clientId);
-      
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-
-      const updatedClient = await storage.updateClient(clientId, { isActive: !client.isActive });
-      res.json(updatedClient);
-    } catch (error) {
-      console.error("Admin toggle client error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Client management routes
-  app.put("/api/client/settings", requireAuth, async (req, res) => {
-    try {
-      const client = await storage.getClientByUserId(req.session.userId!);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-
-      const updates = {
-        websiteUrl: req.body.websiteUrl,
-        allowedDomains: req.body.allowedDomains || [],
-        widgetPosition: req.body.widgetPosition,
-        widgetTheme: req.body.widgetTheme,
-        requireReferrerCheck: req.body.requireReferrerCheck !== false,
-        maxRequestsPerMinute: req.body.maxRequestsPerMinute || 10,
-      };
-
-      const updatedClient = await storage.updateClient(client.id, updates);
-      res.json({
-        ...updatedClient,
-        secretKey: undefined // Never expose secret key
-      });
-    } catch (error) {
-      console.error("Settings update error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.get("/api/client/analytics", requireAuth, async (req, res) => {
-    try {
-      const client = await storage.getClientByUserId(req.session.userId!);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-
-      const analytics = await storage.getAnalyticsByClient(client.id);
-      const sessions = await storage.getTryOnSessionsByClient(client.id);
-
-      // Calculate stats
-      const views = analytics.filter(a => a.eventType === "view").length;
-      const tryOns = sessions.length;
-      const conversions = analytics.filter(a => a.eventType === "conversion").length;
-
-      res.json({
-        totalViews: views,
-        tryOns: tryOns,
-        conversions: conversions,
-        conversionRate: tryOns > 0 ? ((conversions / tryOns) * 100).toFixed(1) : "0",
-        monthlyTryOnCount: client.monthlyTryOnCount,
-        monthlyTryOnLimit: client.monthlyTryOnLimit,
-        recentActivity: analytics.slice(-10).reverse()
-      });
-    } catch (error) {
-      console.error("Analytics error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Widget initialization endpoint (secure) with automatic refresh support
   app.post("/api/widget/init", async (req, res) => {
     try {
-      const { publicKey, domain } = req.body;
-      
-      if (!publicKey || !domain) {
-        return res.status(400).json({ error: "Missing required parameters" });
+      const { appId, domain } = req.body;
+
+      if (!appId || !domain) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required parameters",
+          error: null,
+        });
       }
 
-      // Get client by public key
-      const client = await storage.getClientByPublicKey(publicKey);
-      if (!client || !client.isActive) {
-        return res.status(404).json({ error: "Invalid widget configuration" });
+      console.log({ appId, domain });
+      // Get client by appId from Nhost GraphQL
+      const { data, error: clientError } = await nhost.graphql.request(
+        `query GetClientByAppId($appId: String!) {
+        clients(where: { app_id: { _eq: $appId } }) {
+          id
+          is_active
+          widget_position
+          widget_theme
+          max_requests_per_minute
+          require_referrer_check
+          allowed_domains
+        }
+      }`,
+        { appId }
+      );
+
+      if (clientError) throw clientError;
+
+      const client = data?.clients[0];
+      if (!client || !client.is_active) {
+        return res.status(404).json({
+          success: false,
+          message: "Invalid widget configuration",
+          error: null,
+        });
       }
 
       // Validate domain if required
-      if (client.requireReferrerCheck && client.allowedDomains && client.allowedDomains.length > 0) {
-        const allowedDomains = client.allowedDomains as string[];
-        if (!SecurityValidator.validateDomain(`https://${domain}`, allowedDomains)) {
-          return res.status(403).json({ error: "Domain not authorized" });
+      if (
+        client.require_referrer_check &&
+        client.allowed_domains &&
+        client.allowed_domains.length > 0
+      ) {
+        const allowedDomains = client.allowed_domains as string[];
+        if (
+          !SecurityValidator.validateDomain(`https://${domain}`, allowedDomains)
+        ) {
+          return res.status(403).json({
+            success: false,
+            message: "Domain not authorized",
+            error: null,
+          });
         }
       }
 
-      // Generate secure session token with 1 hour expiry (will auto-refresh)
-      const sessionToken = SecurityValidator.generateSessionToken(client.id, domain, 3600);
-
       // Track widget initialization
-      await storage.createAnalytics({
-        clientId: client.id,
-        eventType: "widget_init",
-        metadata: { domain, publicKey },
-        originDomain: domain,
-        userIp: req.ip || req.connection.remoteAddress || 'unknown',
-      });
-
-      res.json({
-        sessionToken,
-        config: {
-          position: client.widgetPosition,
-          theme: client.widgetTheme,
-          maxRequestsPerMinute: client.maxRequestsPerMinute,
+      await nhost.graphql.request(
+        `mutation CreateAnalytics(
+        $clientId: uuid!
+        $eventType: String!
+        $metadata: jsonb
+        $originDomain: String!
+        $userIp: String!
+      ) {
+        insert_analytics_one(object: {
+          client_id: $clientId
+          event_type: $eventType
+          metadata: $metadata
+          origin_domain: $originDomain
+          user_ip: $userIp
+        }) { id }
+      }`,
+        {
+          clientId: client.id,
+          eventType: "widget_init",
+          metadata: { domain, appId },
+          originDomain: domain,
+          userIp: req.ip || req.connection.remoteAddress || "unknown",
         }
+      );
+
+      // Return widget config only (no session token)
+      return res.json({
+        success: true,
+        message: "Widget initialized successfully",
+        error: null,
+        config: {
+          position: client.widget_position,
+          theme: client.widget_theme,
+          maxRequestsPerMinute: client.max_requests_per_minute,
+        },
       });
     } catch (error) {
       console.error("Widget init error:", error);
-      res.status(500).json({ error: "Widget initialization failed" });
+      return res.status(500).json({
+        success: false,
+        message: "Widget initialization failed",
+        error,
+      });
     }
   });
 
-  // Virtual try-on routes with secure token validation
   app.post("/api/try-on", async (req, res) => {
     try {
-      const { sessionToken, userImage, clothingImage, clothingImageUrl } = req.body;
-      
-      if (!sessionToken) {
-        return res.status(401).json({ error: "Session token required" });
+      const {
+        appId,
+        userImageUrl,
+        userImage,
+        clothingImage,
+        clothingImageUrl,
+      } = req.body;
+
+      if (!appId) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Invalid App Id", error: null });
       }
 
-      // Validate session token
-      const tokenData = SecurityValidator.verifySessionToken(sessionToken);
-      if (!tokenData) {
-        return res.status(401).json({ error: "Invalid or expired session token" });
+      // 1. Get client
+      const { data: clientData, error: clientError } = await getClientByAppId(
+        appId
+      );
+      if (clientError) throw clientError;
+
+      const client = clientData?.clients[0];
+      if (!client || !client.is_active) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Invalid client", error: null });
       }
 
-      const client = await storage.getClient(tokenData.clientId);
-      if (!client || !client.isActive) {
-        return res.status(404).json({ error: "Invalid client" });
-      }
-
-      // Enhanced security validation
-      const securityResult = await SecurityValidator.validateTokenRequest(req, tokenData);
-      if (!securityResult.isValid) {
-        return res.status(403).json({ error: securityResult.error });
-      }
-
-      // Check monthly limits
       const now = new Date();
-      const lastReset = new Date(client.lastResetDate);
-      const monthsApart = (now.getFullYear() - lastReset.getFullYear()) * 12 + (now.getMonth() - lastReset.getMonth());
-      
+      const lastReset = client.last_reset_date
+        ? new Date(client.last_reset_date)
+        : null;
+
+      let updatedClient = client;
+      const monthsApart = lastReset
+        ? (now.getFullYear() - lastReset.getFullYear()) * 12 +
+          (now.getMonth() - lastReset.getMonth())
+        : Infinity; // force reset if lastReset is null
+
       if (monthsApart >= 1) {
-        await storage.resetMonthlyCount(client.id);
-        const updatedClient = await storage.getClient(client.id);
-        if (updatedClient) {
-          client.monthlyTryOnCount = updatedClient.monthlyTryOnCount;
-        }
+        const { data: resetData, error: resetError } =
+          await nhost.graphql.request(
+            `mutation ResetMonthlyCount($clientId: uuid!, $now: timestamp!) {
+          update_clients_by_pk(
+            pk_columns: { id: $clientId }
+            _set: { monthly_try_on_count: 0, last_reset_date: $now }
+          ) { id monthly_try_on_count last_reset_date }
+        }`,
+            { clientId: client.id, now: now.toISOString() }
+          );
+        if (resetError) throw resetError;
+        updatedClient = resetData.update_clients_by_pk;
       }
 
-      if (client.monthlyTryOnCount >= client.monthlyTryOnLimit) {
-        return res.status(429).json({ 
-          error: "Monthly try-on limit exceeded", 
-          limit: client.monthlyTryOnLimit,
-          used: client.monthlyTryOnCount
+      const monthlyTryOnCount = updatedClient.monthly_try_on_count;
+      const monthlyTryOnLimit = updatedClient.monthly_try_on_limit;
+
+      // 2. Check limits
+      if (monthlyTryOnCount >= monthlyTryOnLimit) {
+        return res.status(429).json({
+          success: false,
+          message: "Monthly try-on limit exceeded",
+          error: null,
         });
       }
 
-      // Determine clothing image source
+      // 3. Process user image
+      let userImageToProcess = userImage;
+      if (userImageUrl && !userImage) {
+        const response = await fetch(userImageUrl);
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString("base64");
+        const mimeType = response.headers.get("content-type") || "image/jpeg";
+        userImageToProcess = `data:${mimeType};base64,${base64}`;
+      }
+      if (!userImageToProcess) {
+        return res.status(400).json({
+          success: false,
+          message: "No user image provided",
+          error: null,
+        });
+      }
+
+      // 4. Process clothing image
       let clothingImageToProcess = clothingImage;
       if (clothingImageUrl && !clothingImage) {
-        try {
-          // Convert URL to base64 for processing
-          const response = await fetch(clothingImageUrl);
-          const buffer = await response.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          const mimeType = response.headers.get('content-type') || 'image/jpeg';
-          clothingImageToProcess = `data:${mimeType};base64,${base64}`;
-        } catch (fetchError) {
-          console.error("Failed to fetch clothing image from URL:", fetchError);
-          return res.status(400).json({ error: "Failed to load clothing image from URL" });
-        }
+        const response = await fetch(clothingImageUrl);
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString("base64");
+        const mimeType = response.headers.get("content-type") || "image/jpeg";
+        clothingImageToProcess = `data:${mimeType};base64,${base64}`;
       }
-
       if (!clothingImageToProcess) {
-        return res.status(400).json({ error: "Either clothingImage or clothingImageUrl must be provided" });
+        return res.status(400).json({
+          success: false,
+          message: "No clothing image provided",
+          error: null,
+        });
       }
 
-      // Get origin and IP for tracking
-      const userIp = req.ip || req.connection.remoteAddress || 'unknown';
+      // 5. Create session
+      const userIp = req.ip || req.connection.remoteAddress || "unknown";
+      const { data: sessionData, error: sessionError } =
+        await nhost.graphql.request(
+          `mutation CreateTryOnSession(
+        $clientId: uuid!
+        $userImage: String!
+        $clothingImage: String!
+        $clothingImageUrl: String
+        $originDomain: String!
+        $userIp: String!
+      ) {
+        insert_try_on_sessions_one(object: {
+          client_id: $clientId
+          user_image: $userImage
+          clothing_image: $clothingImage
+          clothing_image_url: $clothingImageUrl
+          result_image: null
+          status: "processing"
+          origin_domain: $originDomain
+          user_ip: $userIp
+        }) { id }
+      }`,
+          {
+            clientId: client.id,
+            userImage: userImageToProcess,
+            clothingImage: clothingImageToProcess,
+            clothingImageUrl,
+            originDomain: req.get("host"),
+            userIp,
+          }
+        );
+      if (sessionError) throw sessionError;
+      const session = sessionData.insert_try_on_sessions_one;
 
-      // Create try-on session with security tracking
-      const session = await storage.createTryOnSession({
-        clientId: client.id,
-        userImage: userImage,
-        clothingImage: clothingImageToProcess,
-        clothingImageUrl: clothingImageUrl || null,
-        resultImage: null,
-        status: "processing",
-        originDomain: tokenData.domain,
-        userIp: userIp,
-      });
+      // 6. Increment try-on count
+      await nhost.graphql.request(
+        `mutation IncrementTryOnCount($id: uuid!) {
+        update_clients_by_pk(pk_columns: { id: $id }, _inc: { monthly_try_on_count: 1 }) { id }
+      }`,
+        { id: client.id }
+      );
 
-      // Increment try-on count
-      await storage.incrementTryOnCount(client.id);
+      // 7. Track analytics
+      await nhost.graphql.request(
+        `mutation CreateAnalytics(
+        $clientId: uuid!
+        $eventType: String!
+        $metadata: jsonb
+        $originDomain: String!
+        $userIp: String!
+      ) {
+        insert_analytics_one(object: {
+          client_id: $clientId
+          event_type: $eventType
+          metadata: $metadata
+          origin_domain: $originDomain
+          user_ip: $userIp
+        }) { id }
+      }`,
+        {
+          clientId: client.id,
+          eventType: "try_on",
+          metadata: {
+            sessionId: session.id,
+            clothingImageUrl,
+            securityValidated: true,
+          },
+          originDomain: req.get("host"),
+          userIp,
+        }
+      );
 
-      // Track analytics with security info
-      await storage.createAnalytics({
-        clientId: client.id,
-        eventType: "try_on",
-        metadata: { 
-          sessionId: session.id, 
-          clothingImageUrl: clothingImageUrl,
-          securityValidated: true,
-          tokenUsed: true
-        },
-        originDomain: tokenData.domain,
-        userIp: userIp,
-      });
-
-      // Process with Gemini AI
+      // 8. Call AI processor
       try {
-        const resultImage = await processWithGemini(userImage, clothingImageToProcess);
-        
-        await storage.updateTryOnSession(session.id, {
-          resultImage,
-          status: "completed"
-        });
+        const resultImage = await processWithGemini(
+          userImageToProcess,
+          clothingImageToProcess
+        );
+        try {
+          await nhost.graphql.request(
+            `mutation UpdateTryOnSession($id: uuid!, $resultImage: String, $status: String!) {
+            update_try_on_sessions_by_pk(pk_columns: { id: $id }, _set: {
+              result_image: $resultImage
+              status: $status
+            }) { id status }
+          }`,
+            { id: session.id, status: "completed" }
+          );
+        } catch (e) {
+          console.log("error update_try_on_sessions_by_pk", e);
+        }
 
-        res.json({ 
+        return res.json({
+          success: true,
+          message: "Try-on completed successfully",
+          error: null,
           sessionId: session.id,
           resultImage,
-          status: "completed"
         });
       } catch (aiError) {
-        console.error("Gemini AI error:", aiError);
-        await storage.updateTryOnSession(session.id, { status: "failed" });
-        res.status(500).json({ error: "AI processing failed" });
+        await nhost.graphql.request(
+          `mutation UpdateTryOnSession($id: uuid!, $status: String!) {
+          update_try_on_sessions_by_pk(pk_columns: { id: $id }, _set: { status: $status }) { id }
+        }`,
+          { id: session.id, status: "failed" }
+        );
+        return res.status(500).json({
+          success: false,
+          message: "AI processing failed",
+          error: aiError,
+        });
       }
-    } catch (error) {
-      console.error("Try-on error:", error);
-      res.status(400).json({ error: "Invalid request data" });
-    }
-  });
-
-  app.get("/api/try-on/:sessionId", async (req, res) => {
-    try {
-      const sessionId = parseInt(req.params.sessionId);
-      const session = await storage.getTryOnSession(sessionId);
-      
-      if (!session) {
-        return res.status(404).json({ error: "Session not found" });
-      }
-
-      res.json(session);
-    } catch (error) {
-      console.error("Session fetch error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Analytics tracking with token validation
-  app.post("/api/analytics", async (req, res) => {
-    try {
-      const { sessionToken, eventType, metadata } = req.body;
-      
-      if (!sessionToken) {
-        return res.status(401).json({ error: "Session token required" });
-      }
-
-      // Validate session token
-      const tokenData = SecurityValidator.verifySessionToken(sessionToken);
-      if (!tokenData) {
-        return res.status(401).json({ error: "Invalid or expired session token" });
-      }
-
-      const client = await storage.getClient(tokenData.clientId);
-      if (!client || !client.isActive) {
-        return res.status(404).json({ error: "Invalid client" });
-      }
-
-      // Add origin and IP tracking
-      const userIp = req.ip || req.connection.remoteAddress || 'unknown';
-
-      const analytics = await storage.createAnalytics({
-        clientId: client.id,
-        eventType,
-        metadata: metadata || {},
-        originDomain: tokenData.domain,
-        userIp: userIp,
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        success: false,
+        message: "Server error",
+        error: err,
       });
-      
-      res.json(analytics);
-    } catch (error) {
-      console.error("Analytics error:", error);
-      res.status(400).json({ error: "Invalid analytics data" });
     }
   });
-
-  // Regenerate keys endpoint
-  app.post("/api/client/regenerate-keys", requireAuth, async (req, res) => {
-    try {
-      const client = await storage.getClientByUserId(req.session.userId!);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-
-      // Generate new keys
-      const newSecretKey = crypto.randomBytes(32).toString('hex');
-      const newPublicKey = crypto.randomBytes(16).toString('hex');
-
-      const updatedClient = await storage.updateClient(client.id, {
-        secretKey: newSecretKey,
-        publicKey: newPublicKey,
-      });
-
-      res.json({
-        ...updatedClient,
-        secretKey: undefined // Never expose secret key
-      });
-    } catch (error) {
-      console.error("Key regeneration error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Cleanup old rate limits periodically
-  setInterval(async () => {
-    try {
-      await storage.cleanupOldRateLimits();
-    } catch (error) {
-      console.error("Rate limit cleanup error:", error);
-    }
-  }, 300000); // Every 5 minutes
 
   const httpServer = createServer(app);
   return httpServer;
 }
 
-async function processWithGemini(userImage: string, clothingImage: string): Promise<string> {
+async function processWithGemini(
+  userImage: string,
+  clothingImage: string
+): Promise<string> {
   if (!GEMINI_API_KEY) {
     throw new Error("Gemini API key not configured");
   }
 
   try {
-    const { GoogleGenerativeAI } = await import("@google/generative-ai");
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
     const userImageData = parseBase64Image(userImage);
     const clothingImageData = parseBase64Image(clothingImage);
@@ -696,34 +372,48 @@ async function processWithGemini(userImage: string, clothingImage: string): Prom
       Return only the processed image data.
     `;
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: userImageData.base64,
-          mimeType: userImageData.mimeType,
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp-image-generation",
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            data: userImageData.base64Data,
+            mimeType: userImageData.mimeType,
+          },
         },
-      },
-      {
-        inlineData: {
-          data: clothingImageData.base64,
-          mimeType: clothingImageData.mimeType,
+        {
+          inlineData: {
+            data: clothingImageData.base64Data,
+            mimeType: clothingImageData.mimeType,
+          },
         },
+      ],
+      config: {
+        responseModalities: [Modality.TEXT, Modality.IMAGE],
       },
-    ]);
+    });
 
-    const response = await result.response;
-    const text = response.text();
-    
+    // const response = await result.response;
+    // const text = response.text();
+    console.log("ai response", JSON.stringify(response, null, 2));
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    console.log("generated image parts", JSON.stringify(parts, null, 2));
+    const imagePart = parts.find((part) => part.inlineData);
+
+    if (!imagePart) {
+      throw new Error("No image generated");
+    }
+
+    console.log("imagePart", imagePart);
+    const generatedBase64 = imagePart?.inlineData?.data;
+    console.log("generatedBase64", generatedBase64);
+    return `data:image/png;base64,${generatedBase64}`;
     // For now, return a placeholder since Gemini doesn't generate images directly
     // In production, you'd integrate with an image generation service
-    return userImage; // Placeholder - return original image
+    // return userImage; // Placeholder - return original image
   } catch (error) {
     console.error("Gemini processing error:", error);
     throw new Error("AI processing failed");
   }
-}
-
-function generateAppId(): string {
-  return utilsGenerateAppId();
 }

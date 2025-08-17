@@ -10,14 +10,43 @@ async function throwIfResNotOk(res: Response) {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
-  const res = await fetch(url, {
+  let accessToken = localStorage.getItem("accessToken");
+  let res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...(data ? { "Content-Type": "application/json" } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // If unauthorized, try to refresh token and retry once
+  if (res.status === 401 && url !== "/api/auth/refresh-token") {
+    const refreshRes = await fetch("/api/auth/refresh-token", {
+      method: "POST",
+      credentials: "include",
+    });
+    if (refreshRes.ok) {
+      const refreshData = await refreshRes.json();
+      if (refreshData.accessToken) {
+        localStorage.setItem("accessToken", refreshData.accessToken);
+        accessToken = refreshData.accessToken;
+        // Retry original request with new token
+        res = await fetch(url, {
+          method,
+          headers: {
+            ...(data ? { "Content-Type": "application/json" } : {}),
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: data ? JSON.stringify(data) : undefined,
+          credentials: "include",
+        });
+      }
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -51,7 +80,7 @@ export const queryClient = new QueryClient({
       gcTime: 10 * 60 * 1000, // 10 minutes
       retry: (failureCount, error) => {
         // Don't retry on authentication errors
-        if (error.message.includes('401:') || error.message.includes('403:')) {
+        if (error.message.includes("401:") || error.message.includes("403:")) {
           return false;
         }
         // Retry up to 2 times for other errors
