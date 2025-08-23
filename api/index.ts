@@ -1,14 +1,16 @@
 import express from "express";
-import type { Express } from "express";
 import { getClientByAppId, SecurityValidator } from "../server/security";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { parseBase64Image } from "../server/utils";
 import { nhost } from "../shared/nhost";
 
+console.log("Initializing Express app for Vercel...");
+
 const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
+console.log("Setting up nhost headers...");
 // Set up nhost headers
 nhost.graphql.setHeaders({
   "x-hasura-role": "admin",
@@ -16,12 +18,28 @@ nhost.graphql.setHeaders({
 });
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+console.log("Express app initialized successfully");
 
 // Health check endpoint
 app.post("/api/hello", async (req, res) => {
-  console.log("api health");
+  console.log("api health check called");
   return res.json({
     message: "Running...",
+    timestamp: new Date().toISOString(),
+    env: {
+      hasNhostSecret: !!process.env.NHOST_ADMIN_SECRET,
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      nodeEnv: process.env.NODE_ENV,
+    },
+  });
+});
+
+// Simple GET endpoint for easier testing
+app.get("/api/hello", async (req, res) => {
+  console.log("api health check GET called");
+  return res.json({
+    message: "GET endpoint working...",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -416,4 +434,26 @@ async function processWithGemini(
   }
 }
 
+// Add error handling middleware
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("Express error:", err);
+  res.status(500).json({
+    success: false,
+    message: "Internal server error",
+    error:
+      process.env.NODE_ENV === "development" ? err.message : "Server error",
+  });
+});
+
+// Add a catch-all route for debugging
+app.all("*", (req, res) => {
+  console.log(`Unhandled route: ${req.method} ${req.path}`);
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.path}`,
+    availableRoutes: ["/api/hello", "/api/widget/init", "/api/try-on"],
+  });
+});
+
+// Export the Express app as a Vercel serverless function
 export default app;
