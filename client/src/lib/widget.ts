@@ -1,7 +1,6 @@
 // Widget API utilities for Express server
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { APP_URL } from "./utils";
 
 export interface WidgetConfig {
   position: string;
@@ -22,7 +21,7 @@ export class WidgetAPI {
     publicKey: string,
     domain: string
   ): Promise<{ sessionToken: string; config: WidgetConfig }> {
-    const response = await fetch(`${API_BASE_URL}/widget/init`, {
+    const response = await fetch(`${APP_URL}/api/widget/init`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -49,7 +48,7 @@ export class WidgetAPI {
       throw new Error("Widget not initialized. Call initWidget first.");
     }
 
-    const response = await fetch(`${API_BASE_URL}/try-on`, {
+    const response = await fetch(`${APP_URL}/api/try-on`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -76,7 +75,7 @@ export class WidgetAPI {
     }
 
     try {
-      await fetch(`${API_BASE_URL}/analytics`, {
+      await fetch(`${APP_URL}/api/analytics`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
