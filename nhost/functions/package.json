@@ -1,9 +1,0 @@
-{
-  "name": "nhost-functions",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@google/generative-ai": "^0.21.0",
-    "@nhost/nhost-js": "^3.0.0"
-  }
-}

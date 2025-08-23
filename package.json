@@ -7,9 +7,7 @@
     "client": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "nhost:dev": "nhost dev",
-    "nhost:deploy": "nhost deploy",
-    "codegen": "graphql-codegen"
+    "vercel-build": "vite build"
   },
   "dependencies": {
     "@apollo/client": "^3.13.8",
