@@ -30,6 +30,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
     sessionToken: null,
     tokenExpiry: null,
   });
+  console.log("config", config);
   const [showResult, setShowResult] = useState(false);
   const [resultImage, setResultImage] = useState<string>("");
   const [error, setError] = useState<string>("");
