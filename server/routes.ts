@@ -15,6 +15,12 @@ nhost.graphql.setHeaders({
 // Gemini AI integration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.post("/api/hello", async (req, res) => {
+    console.log("api health");
+    return res.json({
+      message: "Running...",
+    });
+  });
   app.post("/api/widget/init", async (req, res) => {
     try {
       const { appId, domain } = req.body;

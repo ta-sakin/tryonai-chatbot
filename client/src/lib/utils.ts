@@ -16,3 +16,4 @@ export function getAvatarUrl(avatarUrl?: string, name?: string) {
   }
   return avatarUrl;
 }
+export const APP_URL = import.meta.env.APP_URL;

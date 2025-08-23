@@ -6,6 +6,7 @@ import { useQuery } from "@apollo/client";
 import { GET_USER_CLIENT } from "@/graphql/queries";
 import { useUserId } from "@nhost/react";
 import { Spinner } from "@/components/ui/spinner";
+import { APP_URL } from "@/lib/utils";
 
 export default function WidgetDemo() {
   const userId = useUserId();
@@ -178,7 +179,7 @@ export default function WidgetDemo() {
           appId: data?.clients?.[0].app_id,
           position: "bottom-right",
           theme: "default",
-          apiUrl: "http://localhost:3000",
+          apiUrl: APP_URL,
         }}
       />
     </div>
