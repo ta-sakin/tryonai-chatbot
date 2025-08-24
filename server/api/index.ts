@@ -1,11 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { log } from "./utils";
+import "dotenv/config";
 // import { setupVite, serveStatic, log } from "../vite";
+import cors from "cors";
 
 // Check if we're running on Vercel (serverless environment)
 
 const app = express();
+app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
@@ -39,7 +42,9 @@ app.use((req, res, next) => {
 
   next();
 });
-
+app.get("/api", (req: Request, res: Response) => {
+  res.send("Hello from the application API!");
+});
 // For local development: full server setup
 (async () => {
   const server = (await registerRoutes(
@@ -67,16 +72,11 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = process.env.PORT || 5000;
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    }
-  );
+  server.listen(port, () => {
+    log(`serving on port ${port}`);
+  });
 })();
-
-// Export the app for Vercel (always at top level)
-export default app;
+// const port = process.env.PORT || 5000;
+// app.listen(port, () => {
+//   log(`serving on port ${port}`);
+// });

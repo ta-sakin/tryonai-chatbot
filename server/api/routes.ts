@@ -360,7 +360,7 @@ export async function registerRoutes(
   }
 }
 
-async function processWithGemini(
+export async function processWithGemini(
   userImage: string,
   clothingImage: string
 ): Promise<string> {
