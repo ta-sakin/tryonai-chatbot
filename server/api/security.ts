@@ -1,6 +1,6 @@
 import { Request } from "express";
 import crypto from "crypto";
-import { nhost } from "../shared/nhost";
+import { nhost } from "./nhost";
 
 export interface SecurityValidationResult {
   isValid: boolean;
@@ -14,7 +14,7 @@ export interface TokenData {
   exp: number;
   iat: number;
 }
-export const getClientByAppId = async (appId) => {
+export const getClientByAppId = async (appId:string) => {
   return await nhost.graphql.request(
     `query GetClients($appId: String!) {
           clients(where: { app_id: { _eq: $appId } }) {

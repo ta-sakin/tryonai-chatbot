@@ -4,10 +4,9 @@ import { createServer, type Server } from "http";
 import { getClientByAppId, SecurityValidator } from "./security";
 import { GoogleGenAI, Modality } from "@google/genai";
 
-import crypto from "crypto";
 import "dotenv/config";
-import { generateAppId as utilsGenerateAppId, parseBase64Image } from "./utils";
-import { nhost } from "../shared/nhost";
+import { parseBase64Image } from "./utils";
+import { nhost } from "./nhost";
 nhost.graphql.setHeaders({
   "x-hasura-role": "admin",
   "x-hasura-admin-secret": process.env.NHOST_ADMIN_SECRET!,
