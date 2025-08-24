@@ -42,7 +42,10 @@ app.use((req, res, next) => {
 
 // For local development: full server setup
 (async () => {
-  const server = (await registerRoutes(app, true)) as any;
+  const server = (await registerRoutes(
+    app,
+    process.env.NODE_ENV === "development"
+  )) as any;
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
