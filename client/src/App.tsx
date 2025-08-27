@@ -121,7 +121,7 @@ function App() {
     <NhostProvider nhost={nhost}>
       <NhostApolloProvider nhost={nhost}>
         <TooltipProvider>
-          <div className="min-h-screen bg-white">
+          <div className="min-h-screen bg-white w-screen h-screen bg-gray-100 relative overflow-hidden">
             <Navbar />
             <Router />
           </div>

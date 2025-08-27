@@ -702,32 +702,32 @@ function initWidget() {
   root.render(<VirtualTryOnStandaloneWidget config={config} />);
 }
 
-// Initialize when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initWidget);
-} else {
-  initWidget();
-}
+// // Initialize when DOM is ready
+// if (document.readyState === "loading") {
+//   document.addEventListener("DOMContentLoaded", initWidget);
+// } else {
+//   initWidget();
+// }
 
 // Export for manual initialization
-window.TryOnAI = {
-  init: (config: Partial<WidgetConfig>) => {
-    const fullConfig: WidgetConfig = {
-      appId: config.appId || "",
-      position: config.position || "bottom-right",
-      theme: config.theme || "default",
-    };
+// window.TryOnAI = {
+//   init: (config: Partial<WidgetConfig>) => {
+//     const fullConfig: WidgetConfig = {
+//       appId: config.appId || "",
+//       position: config.position || "bottom-right",
+//       theme: config.theme || "default",
+//     };
 
-    if (!fullConfig.appId) {
-      console.error("TryOn AI Widget: App Id is required");
-      return;
-    }
+//     if (!fullConfig.appId) {
+//       console.error("TryOn AI Widget: App Id is required");
+//       return;
+//     }
 
-    const widgetContainer = document.createElement("div");
-    widgetContainer.id = "tryon-ai-widget";
-    document.body.appendChild(widgetContainer);
+//     const widgetContainer = document.createElement("div");
+//     widgetContainer.id = "tryon-ai-widget";
+//     document.body.appendChild(widgetContainer);
 
-    const root = createRoot(widgetContainer);
-    root.render(<VirtualTryOnStandaloneWidget config={fullConfig} />);
-  },
-};
+//     const root = createRoot(widgetContainer);
+//     root.render(<VirtualTryOnStandaloneWidget config={fullConfig} />);
+//   },
+// };
