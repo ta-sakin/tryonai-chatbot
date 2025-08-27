@@ -1,46 +1,54 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { build } from 'vite';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { build } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function buildWidget() {
-  console.log('Building widget from React component...');
+  console.log("Building widget from React component...");
 
   try {
     // Build the standalone widget component
     await build({
       configFile: false,
+      resolve: {
+        alias: {
+          "@": path.resolve(__dirname, "client", "src"),
+        },
+      },
       build: {
         lib: {
-          entry: path.resolve(__dirname, 'client/src/components/widget-standalone.tsx'),
-          name: 'TryOnWidget',
-          fileName: 'widget',
-          formats: ['iife']
+          entry: path.resolve(
+            __dirname,
+            "client/src/components/widget-standalone.tsx"
+          ),
+          name: "TryOnWidget",
+          fileName: "widget",
+          formats: ["iife"],
         },
         rollupOptions: {
           external: [],
           output: {
-            globals: {}
-          }
+            globals: {},
+          },
         },
-        outDir: path.resolve(__dirname, 'public'),
+        outDir: path.resolve(__dirname, "public"),
         emptyOutDir: false,
-        minify: true
+        minify: true,
       },
       define: {
-        'process.env.NODE_ENV': '"production"'
+        "process.env.NODE_ENV": '"production"',
       },
       esbuild: {
-        jsx: 'automatic'
-      }
+        jsx: "automatic",
+      },
     });
 
     // Read the built file
-    const builtWidgetPath = path.join(__dirname, 'public/widget.iife.js');
-    let widgetContent = fs.readFileSync(builtWidgetPath, 'utf8');
+    const builtWidgetPath = path.join(__dirname, "public/widget.iife.js");
+    let widgetContent = fs.readFileSync(builtWidgetPath, "utf8");
 
     // Add CSS styles inline
     const styles = `
@@ -63,17 +71,17 @@ async function buildWidget() {
         if (!document.getElementById('tryon-ai-styles')) {
           const style = document.createElement('style');
           style.id = 'tryon-ai-styles';
-          style.textContent = \`${styles.replace(/`/g, '\\`')}\`;
+          style.textContent = \`${styles.replace(/`/g, "\\`")}\`;
           document.head.appendChild(style);
         }
       })();
     `;
 
     // Combine style injection with widget code
-    const finalWidget = styleInjection + '\n' + widgetContent;
+    const finalWidget = styleInjection + "\n" + widgetContent;
 
     // Write the final widget file
-    const outputPath = path.join(__dirname, 'public/widget.js');
+    const outputPath = path.join(__dirname, "public/widget.js");
     fs.writeFileSync(outputPath, finalWidget);
 
     // Clean up the temporary file
@@ -81,9 +89,9 @@ async function buildWidget() {
       fs.unlinkSync(builtWidgetPath);
     }
 
-    console.log('Widget built successfully at public/widget.js');
+    console.log("Widget built successfully at public/widget.js");
   } catch (error) {
-    console.error('Error building widget:', error);
+    console.error("Error building widget:", error);
     process.exit(1);
   }
 }
