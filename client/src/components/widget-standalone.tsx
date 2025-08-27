@@ -678,8 +678,8 @@ declare global {
 }
 
 function initWidget() {
-  // Extract config from script tag
-  const scripts = document.querySelectorAll("script[data-public-key]");
+  // Extract config from script tag - matches the working version pattern
+  const scripts = document.querySelectorAll("script[data-app-id]");
   const scriptTag = scripts[scripts.length - 1] as HTMLScriptElement;
 
   const config: WidgetConfig = {
@@ -722,7 +722,7 @@ window.TryOnAI = {
     };
 
     if (!fullConfig.appId) {
-      console.error("TryOn AI Widget: Public key is required");
+      console.error("TryOn AI Widget: App Id is required");
       return;
     }
 
