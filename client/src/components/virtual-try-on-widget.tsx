@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { TryOnResultModal } from "./try-on-result-modal";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { APP_URL, cn } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
 
 interface VirtualTryOnWidgetProps {
@@ -31,7 +31,6 @@ interface VirtualTryOnWidgetProps {
   position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   theme?: "default" | "dark" | "minimal";
   isDemo?: boolean;
-  apiUrl: string;
 }
 async function urlToBase64(url: string) {
   const response = await fetch(url);
@@ -49,9 +48,10 @@ export function VirtualTryOnWidget({
   position = "bottom-right",
   theme = "default",
   isDemo = false,
-  apiUrl,
 }: VirtualTryOnWidgetProps) {
-  const [isExpanded, setIsExpanded] = useState(isDemo);
+  const [isExpanded, setIsExpanded] = useState(
+    isDemo
+  );
   const [userImage, setUserImage] = useState<string>("");
   const [clothingImage, setClothingImage] = useState<string>("");
   const [clothingImageUrl, setClothingImageUrl] = useState<string>("");
@@ -89,7 +89,7 @@ export function VirtualTryOnWidget({
   }) => {
     setIsProcessing(true);
     try {
-      const response = await fetch(`${apiUrl}/api/try-on`, {
+      const response = await fetch(`${APP_URL}/api/try-on`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

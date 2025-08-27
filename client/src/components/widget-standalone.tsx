@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { VirtualTryOnWidget } from "./virtual-try-on-widget";
+import { APP_URL } from "@/lib/utils";
 
 interface WidgetConfig {
   appId: string;
   position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   theme: "default" | "dark" | "minimal";
-  apiUrl: string;
 }
 
 interface WidgetState {
@@ -79,7 +79,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
 
       try {
         const domain = window.location.hostname;
-        const response = await fetch(`${config.apiUrl}/api/widget/init`, {
+        const response = await fetch(`${APP_URL}/api/widget/init`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -307,7 +307,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
 
     try {
       const response = await makeAuthenticatedRequest(
-        `${config.apiUrl}/api/try-on`,
+        `${APP_URL}/api/try-on`,
 
         {
           method: "POST",
@@ -342,7 +342,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
       if (!state.sessionToken) return;
 
       try {
-        await makeAuthenticatedRequest(`${config.apiUrl}/api/analytics`, {
+        await makeAuthenticatedRequest(`${APP_URL}/api/analytics`, {
           method: "POST",
           body: JSON.stringify({
             eventType,
@@ -354,7 +354,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
         // Don't show user errors for analytics failures
       }
     },
-    [state.sessionToken, makeAuthenticatedRequest, config.apiUrl]
+    [state.sessionToken, makeAuthenticatedRequest]
   );
 
   const clearUserPhoto = () => {
@@ -403,8 +403,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
         appId={config.appId}
         position="bottom-right"
         theme="default"
-        isDemo={true}
-        apiUrl={config.apiUrl}
+        isDemo={window.location.origin === APP_URL}
       />
       {/* <div
         className={`fixed ${positionClasses[config.position]} z-[10000] w-80`}
@@ -686,7 +685,6 @@ function initWidget() {
     appId: scriptTag?.dataset.appId || "",
     position: (scriptTag?.dataset.position as any) || "bottom-right",
     theme: (scriptTag?.dataset.theme as any) || "default",
-    apiUrl: scriptTag?.dataset.apiUrl || window.location.origin,
   };
 
   if (!config.appId) {
@@ -718,7 +716,6 @@ window.TryOnAI = {
       appId: config.appId || "",
       position: config.position || "bottom-right",
       theme: config.theme || "default",
-      apiUrl: config.apiUrl || window.location.origin,
     };
 
     if (!fullConfig.appId) {

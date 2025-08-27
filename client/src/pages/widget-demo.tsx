@@ -179,7 +179,6 @@ export default function WidgetDemo() {
           appId: data?.clients?.[0].app_id,
           position: "bottom-right",
           theme: "default",
-          apiUrl: APP_URL,
         }}
       />
     </div>
