@@ -12,6 +12,7 @@ nhost.graphql.setHeaders({
   "x-hasura-role": "admin",
   "x-hasura-admin-secret": process.env.NHOST_ADMIN_SECRET!,
 });
+import { blobToURL, urlToBlob, fromBlob, fromURL } from "image-resize-compress";
 const tryonRoutes = express();
 
 // Gemini AI integration
@@ -362,7 +363,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 //     return app;
 //   }
 // }
- 
+
 tryonRoutes.post("/widget/init", async (req, res) => {
   try {
     const { appId, domain } = req.body;
@@ -651,7 +652,7 @@ tryonRoutes.post("/try-on", async (req, res) => {
               status: $status
             }) { id status }
           }`,
-          { id: session.id, status: "completed" }
+          { id: session.id, resultImage, status: "completed" }
         );
       } catch (e) {
         console.log("error update_try_on_sessions_by_pk", e);

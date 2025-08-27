@@ -690,7 +690,7 @@ function initWidget() {
   };
 
   if (!config.appId) {
-    console.error("TryOn AI Widget: Public key is required");
+    console.error("TryOn AI Widget: App Id is required");
     return;
   }
 
