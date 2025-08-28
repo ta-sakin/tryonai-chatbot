@@ -453,11 +453,11 @@ function initWidget() {
 }
 
 // Initialize when DOM is ready
-// if (document.readyState === "loading") {
-//   document.addEventListener("DOMContentLoaded", initWidget);
-// } else {
-//   initWidget();
-// }
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initWidget);
+} else {
+  initWidget();
+}
 
 // Export for manual initialization
 window.TryOnAI = {
