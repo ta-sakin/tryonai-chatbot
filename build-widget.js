@@ -13,26 +13,54 @@ async function buildWidget() {
   console.log("Building widget from React component...");
 
   try {
+    // Import the existing Tailwind config
+    const tailwindConfig = await import("./tailwind.config.ts");
+
     // First, generate Tailwind CSS for the widget
     const tailwindCSS = `
       @tailwind base;
       @tailwind components;
       @tailwind utilities;
       
-      /* Widget-specific base styles */
-      .tryon-widget * {
-        box-sizing: border-box;
-      }
+      /* CSS Variables for the widget */
       .tryon-widget {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 221.2 83.2% 53.3%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222.2 84% 4.9%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96%;
+        --accent-foreground: 222.2 84% 4.9%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 221.2 83.2% 53.3%;
+        --radius: 0.5rem;
+        
+        /* Widget-specific base styles */
+        box-sizing: border-box;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
         line-height: 1.5;
       }
+      
+      .tryon-widget * {
+        box-sizing: border-box;
+      }
     `;
 
-    // Process CSS with Tailwind
+    // Process CSS with Tailwind using the existing config
     const result = await postcss([
       tailwindcss({
+        ...tailwindConfig.default,
         content: [
           path.resolve(
             __dirname,
@@ -48,21 +76,6 @@ async function buildWidget() {
           ),
           path.resolve(__dirname, "client/src/components/ui/*.tsx"),
         ],
-        theme: {
-          extend: {
-            colors: {
-              primary: {
-                DEFAULT: "#3b82f6",
-                foreground: "#ffffff",
-              },
-              secondary: {
-                DEFAULT: "#6b7280",
-                foreground: "#ffffff",
-              },
-            },
-          },
-        },
-        plugins: [],
       }),
       autoprefixer,
     ]).process(tailwindCSS, { from: undefined });
@@ -110,7 +123,7 @@ async function buildWidget() {
     // Use the generated Tailwind CSS
     const processedCSS = result.css;
 
-    // Inject styles into the widget
+    // Inject styles into the widget with proper scoping
     const styleInjection = `
       (function() {
         if (!document.getElementById('tryon-ai-styles')) {
@@ -119,6 +132,14 @@ async function buildWidget() {
           style.textContent = \`${processedCSS.replace(/`/g, "\\`")}\`;
           document.head.appendChild(style);
         }
+        
+        // Add the tryon-widget class to the widget container
+        setTimeout(() => {
+          const widgetContainer = document.getElementById('tryon-ai-widget');
+          if (widgetContainer) {
+            widgetContainer.classList.add('tryon-widget');
+          }
+        }, 100);
       })();
     `;
 
