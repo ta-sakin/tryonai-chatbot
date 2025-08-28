@@ -434,22 +434,30 @@ function initWidget() {
     return;
   }
 
-  // Create widget container
+  // Create widget container with Shadow DOM for style isolation
+  const widgetHost = document.createElement("div");
+  widgetHost.id = "tryon-ai-widget-host";
+  document.body.appendChild(widgetHost);
+
+  // Create shadow root for complete style isolation
+  const shadowRoot = widgetHost.attachShadow({ mode: "open" });
+
+  // Create the actual widget container inside shadow DOM
   const widgetContainer = document.createElement("div");
   widgetContainer.id = "tryon-ai-widget";
-  document.body.appendChild(widgetContainer);
+  shadowRoot.appendChild(widgetContainer);
 
-  // Render widget
+  // Render widget inside shadow DOM
   const root = createRoot(widgetContainer);
   root.render(<VirtualTryOnStandaloneWidget config={config} />);
 }
 
 // Initialize when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initWidget);
-} else {
-  initWidget();
-}
+// if (document.readyState === "loading") {
+//   document.addEventListener("DOMContentLoaded", initWidget);
+// } else {
+//   initWidget();
+// }
 
 // Export for manual initialization
 window.TryOnAI = {
