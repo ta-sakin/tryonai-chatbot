@@ -105,31 +105,39 @@ async function buildWidget() {
       "#tryon-ai-widget $1"
     );
 
-    // Style injection with scoping
+    // Style injection for Shadow DOM
     const styleInjection = `
       (function() {
-        if (!document.getElementById('tryon-ai-styles')) {
-          const style = document.createElement('style');
-          style.id = 'tryon-ai-styles';
-          style.textContent = \`
-            /* TryOn AI Widget Scoped Styles */
-            #tryon-ai-widget {
-              all: initial;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 14px;
-              line-height: 1.5;
-              color: #111827;
-              box-sizing: border-box;
-            }
-            #tryon-ai-widget *, 
-            #tryon-ai-widget *::before, 
-            #tryon-ai-widget *::after {
-              box-sizing: border-box;
-            }
-            ${scopedCSS.replace(/`/g, "\\`")}
-          \`;
-          document.head.appendChild(style);
-        }
+        // Store styles for Shadow DOM injection
+        window.TRYON_WIDGET_STYLES = \`
+          /* TryOn AI Widget Styles */
+          :host {
+            all: initial;
+            display: block;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #111827;
+          }
+          
+          * {
+            box-sizing: border-box;
+          }
+          
+          ${result.css.replace(/`/g, "\\`")}
+        \`;
+        
+        // Override attachShadow to inject styles
+        const originalAttachShadow = Element.prototype.attachShadow;
+        Element.prototype.attachShadow = function(options) {
+          const shadowRoot = originalAttachShadow.call(this, options);
+          if (this.id === 'tryon-ai-widget-host') {
+            const style = document.createElement('style');
+            style.textContent = window.TRYON_WIDGET_STYLES;
+            shadowRoot.appendChild(style);
+          }
+          return shadowRoot;
+        };
       })();
     `;
 
@@ -137,7 +145,7 @@ async function buildWidget() {
     const finalWidget = styleInjection + "\n" + widgetContent;
 
     // Write files
-    const outputPath = path.join(__dirname, "public/widget-tailwind.js");
+    const outputPath = path.join(__dirname, "public/widget.js");
     fs.writeFileSync(outputPath, finalWidget);
 
     // Clean up
@@ -145,9 +153,7 @@ async function buildWidget() {
       fs.unlinkSync(builtWidgetPath);
     }
 
-    console.log(
-      "Widget with Tailwind built successfully at public/widget-tailwind.js"
-    );
+    console.log("Widget built successfully at public/widget.js");
   } catch (error) {
     console.error("Error building widget:", error);
     process.exit(1);
