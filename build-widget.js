@@ -50,7 +50,7 @@ async function buildWidget() {
     const builtWidgetPath = path.join(__dirname, "public/widget.iife.js");
     let widgetContent = fs.readFileSync(builtWidgetPath, "utf8");
 
-    // Add basic CSS styles inline (simplified for now)
+    // Add CSS styles inline
     const styles = `
       /* TryOn AI Widget Styles */
       .tryon-widget * {
