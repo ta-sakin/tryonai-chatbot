@@ -521,11 +521,11 @@ function initWidgetFromScriptTag() {
   mountWidget(config);
 }
 
-// if (document.readyState === "loading") {
-//   document.addEventListener("DOMContentLoaded", initWidgetFromScriptTag);
-// } else {
-//   initWidgetFromScriptTag();
-// }
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initWidgetFromScriptTag);
+} else {
+  initWidgetFromScriptTag();
+}
 
 (window as any).TryOnAI = {
   init: (config: Partial<WidgetConfig>) => {
