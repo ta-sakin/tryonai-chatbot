@@ -9,9 +9,10 @@
     "build:client": "vite build",
     "build:server": "cd server && npm install && npm run build && cd ..",
     "build": "npm run build:server && npm run build:client",
-    "build:widget": "node build-widget.js",
+    "build:widget": "node build-widget.js && npm run build:css",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:css": "tailwindcss -i ./client/src/index.css -o ./public/tailwind.css --minify"
   },
   "dependencies": {
     "@apollo/client": "^3.13.8",

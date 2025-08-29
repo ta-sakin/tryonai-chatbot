@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { VirtualTryOnWidget } from "./virtual-try-on-widget";
 import { APP_URL } from "@/lib/utils";
-import styles from "../index.css?inline";
+// import styles from "../index.css?inline";
+import styles from "../../../public/tailwind.css?inline";
+
 interface WidgetConfig {
   appId: string;
   position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
@@ -490,9 +492,13 @@ function mountWidget(config: WidgetConfig) {
   const shadow = host.attachShadow({ mode: "open" });
 
   // Inject Tailwind inside Shadow DOM
-  const styleEl = document.createElement("style");
-  styleEl.textContent = styles;
-  shadow.appendChild(styleEl);
+  // const styleEl = document.createElement("style");
+  // styleEl.textContent = styles;
+  // shadow.appendChild(styleEl);
+  const linkEl = document.createElement("link");
+  linkEl.setAttribute("rel", "stylesheet");
+  linkEl.setAttribute("href", "https://tryonai-chatbot.pages.dev/tailwind.css");
+  shadow.appendChild(linkEl);
 
   const container = document.createElement("div");
   container.id = "tryon-ai-widget";
