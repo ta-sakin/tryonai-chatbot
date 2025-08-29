@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { VirtualTryOnWidget } from "./virtual-try-on-widget";
 import { APP_URL } from "@/lib/utils";
-
+import styles from "../index.css?inline";
 interface WidgetConfig {
   appId: string;
   position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
@@ -410,16 +410,100 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
 };
 
 // Widget initialization function
-declare global {
-  interface Window {
-    TryOnAI: {
-      init: (config: Partial<WidgetConfig>) => void;
-    };
-  }
+// declare global {
+//   interface Window {
+//     TryOnAI: {
+//       init: (config: Partial<WidgetConfig>) => void;
+//     };
+//   }
+// }
+
+// function initWidget() {
+//   // Extract config from script tag - matches the working version pattern
+//   const scripts = document.querySelectorAll("script[data-app-id]");
+//   const scriptTag = scripts[scripts.length - 1] as HTMLScriptElement;
+
+//   const config: WidgetConfig = {
+//     appId: scriptTag?.dataset.appId || "",
+//     position: (scriptTag?.dataset.position as any) || "bottom-right",
+//     theme: (scriptTag?.dataset.theme as any) || "default",
+//   };
+
+//   if (!config.appId) {
+//     console.error("TryOn AI Widget: App Id is required");
+//     return;
+//   }
+
+//   // Create widget container with Shadow DOM for style isolation
+//   const widgetHost = document.createElement("div");
+//   widgetHost.id = "tryon-ai-widget-host";
+//   document.body.appendChild(widgetHost);
+
+//   // Create shadow root for complete style isolation
+//   const shadowRoot = widgetHost.attachShadow({ mode: "open" });
+
+//   // Create the actual widget container inside shadow DOM
+//   const widgetContainer = document.createElement("div");
+//   widgetContainer.id = "tryon-ai-widget";
+//   shadowRoot.appendChild(widgetContainer);
+
+//   // Render widget inside shadow DOM
+//   const root = createRoot(widgetContainer);
+//   root.render(<VirtualTryOnStandaloneWidget config={config} />);
+// }
+
+// // Initialize when DOM is ready
+// if (document.readyState === "loading") {
+//   document.addEventListener("DOMContentLoaded", initWidget);
+// } else {
+//   initWidget();
+// }
+
+// // Export for manual initialization
+// window.TryOnAI = {
+//   init: (config: Partial<WidgetConfig>) => {
+//     const fullConfig: WidgetConfig = {
+//       appId: config.appId || "",
+//       position: config.position || "bottom-right",
+//       theme: config.theme || "default",
+//     };
+
+//     if (!fullConfig.appId) {
+//       console.error("TryOn AI Widget: App Id is required");
+//       return;
+//     }
+
+//     const widgetContainer = document.createElement("div");
+//     widgetContainer.id = "tryon-ai-widget";
+//     document.body.appendChild(widgetContainer);
+
+//     const root = createRoot(widgetContainer);
+//     root.render(<VirtualTryOnStandaloneWidget config={fullConfig} />);
+//   },
+// };
+
+function mountWidget(config: WidgetConfig) {
+  const host = document.createElement("div");
+  host.id = "tryon-ai-widget-host";
+  document.body.appendChild(host);
+
+  const shadow = host.attachShadow({ mode: "open" });
+
+  // Inject Tailwind inside Shadow DOM
+  const styleEl = document.createElement("style");
+  styleEl.textContent = styles;
+  shadow.appendChild(styleEl);
+
+  const container = document.createElement("div");
+  container.id = "tryon-ai-widget";
+  shadow.appendChild(container);
+
+  createRoot(container).render(
+    <VirtualTryOnStandaloneWidget config={config} />
+  );
 }
 
-function initWidget() {
-  // Extract config from script tag - matches the working version pattern
+function initWidgetFromScriptTag() {
   const scripts = document.querySelectorAll("script[data-app-id]");
   const scriptTag = scripts[scripts.length - 1] as HTMLScriptElement;
 
@@ -434,33 +518,16 @@ function initWidget() {
     return;
   }
 
-  // Create widget container with Shadow DOM for style isolation
-  const widgetHost = document.createElement("div");
-  widgetHost.id = "tryon-ai-widget-host";
-  document.body.appendChild(widgetHost);
-
-  // Create shadow root for complete style isolation
-  const shadowRoot = widgetHost.attachShadow({ mode: "open" });
-
-  // Create the actual widget container inside shadow DOM
-  const widgetContainer = document.createElement("div");
-  widgetContainer.id = "tryon-ai-widget";
-  shadowRoot.appendChild(widgetContainer);
-
-  // Render widget inside shadow DOM
-  const root = createRoot(widgetContainer);
-  root.render(<VirtualTryOnStandaloneWidget config={config} />);
+  mountWidget(config);
 }
 
-// Initialize when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initWidget);
-} else {
-  initWidget();
-}
+// if (document.readyState === "loading") {
+//   document.addEventListener("DOMContentLoaded", initWidgetFromScriptTag);
+// } else {
+//   initWidgetFromScriptTag();
+// }
 
-// Export for manual initialization
-window.TryOnAI = {
+(window as any).TryOnAI = {
   init: (config: Partial<WidgetConfig>) => {
     const fullConfig: WidgetConfig = {
       appId: config.appId || "",
@@ -473,11 +540,6 @@ window.TryOnAI = {
       return;
     }
 
-    const widgetContainer = document.createElement("div");
-    widgetContainer.id = "tryon-ai-widget";
-    document.body.appendChild(widgetContainer);
-
-    const root = createRoot(widgetContainer);
-    root.render(<VirtualTryOnStandaloneWidget config={fullConfig} />);
+    mountWidget(fullConfig);
   },
 };
