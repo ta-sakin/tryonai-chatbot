@@ -26,16 +26,19 @@ async function buildWidget() {
           ),
           name: "TryOnWidget",
           fileName: "widget",
-          formats: ["iife"], // self-executing
+          formats: ["iife"],
         },
         rollupOptions: {
           output: {
-            inlineDynamicImports: true, // ensure single file
+            inlineDynamicImports: true,
+            // 👇 Ensure CSS is injected
+            assetFileNames: "widget.[ext]",
           },
         },
         outDir: path.resolve(__dirname, "public"),
         emptyOutDir: false,
         minify: true,
+        cssCodeSplit: false, // 👈 this forces all CSS into the JS
       },
       define: {
         "process.env.NODE_ENV": '"production"',
@@ -52,8 +55,6 @@ async function buildWidget() {
     if (fs.existsSync(builtWidgetPath)) {
       fs.renameSync(builtWidgetPath, outputPath);
     }
-
-    console.log("✅ Widget built successfully at public/widget.js");
   } catch (error) {
     console.error("❌ Error building widget:", error);
     process.exit(1);
