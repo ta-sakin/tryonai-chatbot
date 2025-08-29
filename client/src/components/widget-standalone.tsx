@@ -483,23 +483,28 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
 //     root.render(<VirtualTryOnStandaloneWidget config={fullConfig} />);
 //   },
 // };
+async function injectTailwind(shadow: ShadowRoot) {
+  const res = await fetch("https://tryonai-chatbot.pages.dev/tailwind.css");
+  const css = await res.text();
 
+  const styleEl = document.createElement("style");
+  styleEl.textContent = css;
+  shadow.appendChild(styleEl);
+}
 function mountWidget(config: WidgetConfig) {
   const host = document.createElement("div");
   host.id = "tryon-ai-widget-host";
   document.body.appendChild(host);
 
   const shadow = host.attachShadow({ mode: "open" });
+  // (async () => {
+  //   await injectTailwind(shadow);
 
-  // Inject Tailwind inside Shadow DOM
-  // const styleEl = document.createElement("style");
-  // styleEl.textContent = styles;
-  // shadow.appendChild(styleEl);
-  const linkEl = document.createElement("link");
-  linkEl.setAttribute("rel", "stylesheet");
-  linkEl.setAttribute("href", "https://tryonai-chatbot.pages.dev/tailwind.css");
-  shadow.appendChild(linkEl);
-
+  // })();
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://tryonai-chatbot.pages.dev/tailwind.css"; // your compiled tailwind
+  shadow.appendChild(link);
   const container = document.createElement("div");
   container.id = "tryon-ai-widget";
   shadow.appendChild(container);
