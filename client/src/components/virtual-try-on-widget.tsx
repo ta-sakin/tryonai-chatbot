@@ -49,9 +49,7 @@ export function VirtualTryOnWidget({
   theme = "default",
   isDemo = false,
 }: VirtualTryOnWidgetProps) {
-  const [isExpanded, setIsExpanded] = useState(
-    isDemo
-  );
+  const [isExpanded, setIsExpanded] = useState(isDemo);
   const [userImage, setUserImage] = useState<string>("");
   const [clothingImage, setClothingImage] = useState<string>("");
   const [clothingImageUrl, setClothingImageUrl] = useState<string>("");

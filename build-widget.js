@@ -62,3 +62,36 @@ async function buildWidget() {
 }
 
 buildWidget();
+// // build-widget.js
+// import path from "path";
+// import { fileURLToPath } from "url";
+// import { build } from "vite";
+// import fs from "fs";
+
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
+
+// async function buildWidget() {
+//   console.log("Building widget from React component...");
+
+//   try {
+//     await build({
+//       configFile: path.resolve(__dirname, "vite.config.widget.ts"), // Use the new config file
+//       root: path.resolve(__dirname, "client"),
+//       // Remove all the build options that are now in the vite.config.widget file.
+//     });
+
+//     // The rest of your script for renaming the output
+//     const builtWidgetPath = path.join(__dirname, "public/widget.iife.js");
+//     const outputPath = path.join(__dirname, "public/widget.js");
+
+//     if (fs.existsSync(builtWidgetPath)) {
+//       fs.renameSync(builtWidgetPath, outputPath);
+//     }
+//   } catch (error) {
+//     console.error("❌ Error building widget:", error);
+//     process.exit(1);
+//   }
+// }
+
+// buildWidget();

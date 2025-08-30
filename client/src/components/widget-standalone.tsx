@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { VirtualTryOnWidget } from "./virtual-try-on-widget";
 import { APP_URL } from "@/lib/utils";
-// import styles from "../index.css?inline";
-import styles from "../../../public/tailwind.css?inline";
+import styles from "../index.css?inline";
+// import styles from "../../../public/tailwind.css?inline";
 
 interface WidgetConfig {
   appId: string;
@@ -491,20 +491,20 @@ async function injectTailwind(shadow: ShadowRoot) {
   styleEl.textContent = css;
   shadow.appendChild(styleEl);
 }
-function mountWidget(config: WidgetConfig) {
+async function mountWidget(config: WidgetConfig) {
   const host = document.createElement("div");
   host.id = "tryon-ai-widget-host";
   document.body.appendChild(host);
 
   const shadow = host.attachShadow({ mode: "open" });
-  // (async () => {
-  //   await injectTailwind(shadow);
 
-  // })();
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = "https://tryonai-chatbot.pages.dev/tailwind.css"; // your compiled tailwind
-  shadow.appendChild(link);
+  const styleEl = document.createElement("style");
+  styleEl.textContent = styles;
+  shadow.appendChild(styleEl);
+  const shadowDomStyles = styles.replace(":root", ":host");
+  styleEl.textContent = shadowDomStyles;
+
+  shadow.appendChild(styleEl);
   const container = document.createElement("div");
   container.id = "tryon-ai-widget";
   shadow.appendChild(container);
