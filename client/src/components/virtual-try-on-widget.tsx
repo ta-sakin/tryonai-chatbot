@@ -25,6 +25,7 @@ import { TryOnResultModal } from "./try-on-result-modal";
 import { useToast } from "@/hooks/use-toast";
 import { APP_URL, cn } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
+import { useTheme } from "./theme-provider";
 
 interface VirtualTryOnWidgetProps {
   appId: string;
@@ -66,7 +67,16 @@ export function VirtualTryOnWidget({
   const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
   const userFileInputRef = useRef<HTMLInputElement>(null);
   const clothingFileInputRef = useRef<HTMLInputElement>(null);
+  const { setTheme, theme: appTheme } = useTheme();
+  console.log("VirtualTryOnWidget", {
+    appId,
+    theme,
+    position,
+  });
 
+  useEffect(() => {
+    setTheme(isDemo ? appTheme : theme === "default" ? "light" : "dark");
+  }, [theme]);
   const positionClasses = {
     "bottom-right": "bottom-6 right-6",
     "bottom-left": "bottom-6 left-6",
@@ -75,9 +85,9 @@ export function VirtualTryOnWidget({
   };
 
   const themeClasses = {
-    default: "bg-white border-gray-200",
-    dark: "bg-gray-900 border-gray-700 text-white",
-    minimal: "bg-white border-gray-100 shadow-sm",
+    default: "bg-card border-border text-card-foreground",
+    dark: "bg-card border-border text-card-foreground",
+    minimal: "bg-card border-border text-card-foreground shadow-sm",
   };
 
   const performTryOn = async (data: {
@@ -447,7 +457,7 @@ export function VirtualTryOnWidget({
                             ? "Drop your photo here"
                             : "Upload or drag your photo"}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           JPG, PNG up to 5MB
                         </p>
                       </div>
@@ -477,12 +487,12 @@ export function VirtualTryOnWidget({
 
                     <TabsContent value="upload" className="mt-2">
                       <div
-                        className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                        className={`mt-2 border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
                           isDraggingClothing
-                            ? "border-secondary bg-secondary/20"
+                            ? "border-primary bg-primary/20"
                             : clothingImage
                             ? "border-green-300 bg-green-50"
-                            : "border-secondary/30 bg-secondary/5 hover:bg-secondary/10"
+                            : "border-primary/30 bg-primary/5 hover:bg-primary/10"
                         }`}
                         onDragOver={(e) => handleDragOver(e, "clothing")}
                         onDragLeave={(e) => handleDragLeave(e, "clothing")}
@@ -525,13 +535,14 @@ export function VirtualTryOnWidget({
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <ImageIcon className="h-8 w-8 text-secondary mx-auto" />
-                            <p className="text-sm text-secondary font-medium">
+                            <ImageIcon className="h-8 w-8 text-primary mx-auto" />
+
+                            <p className="text-sm text-primary font-medium">
                               {isDraggingClothing
                                 ? "Drop clothing image here"
                                 : "Upload or drag clothing image"}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                               JPG, PNG up to 5MB
                             </p>
                           </div>
@@ -593,7 +604,7 @@ export function VirtualTryOnWidget({
                       </div>
                     </TabsContent>
                     {!clothingImageUrl && !clothingImage && (
-                      <p className="text-xs text-gray-500 text-center mt-2">
+                      <p className="text-xs text-muted-foreground text-center mt-2">
                         Or drag & drop a cloud image to auto-capture URL
                       </p>
                     )}
@@ -624,14 +635,14 @@ export function VirtualTryOnWidget({
                 </Button>
 
                 {/* Tips */}
-                <div className="bg-blue-50 rounded-lg p-3 text-xs">
+                <div className="bg-muted/50 rounded-lg p-3 text-xs">
                   <div className="flex items-start space-x-2">
-                    <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-blue-600 text-xs">💡</span>
+                    <div className="w-4 h-4 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-primary text-xs">💡</span>
                     </div>
-                    <div className="text-blue-700">
+                    <div className="text-foreground">
                       <p className="font-medium mb-1">For best results:</p>
-                      <ul className="space-y-1 text-blue-600">
+                      <ul className="space-y-1 text-muted-foreground">
                         <li>• Use a full-body photo</li>
                         <li>• Stand facing forward</li>
                         <li>• Plain background works best</li>
@@ -642,7 +653,7 @@ export function VirtualTryOnWidget({
                 </div>
               </TabsContent>
               <TabsContent value="history" className="mt-2">
-                <h2 className="text-lg font-semibold text-gray-700 mb-3">
+                <h2 className="text-lg font-semibold text-foreground mb-3">
                   Recent Try-Ons
                 </h2>
                 {recentTryOns.length > 0 ? (
@@ -650,7 +661,7 @@ export function VirtualTryOnWidget({
                     {recentTryOns.map((tryOn, index) => (
                       <div
                         key={index}
-                        className="bg-white rounded-lg shadow p-3 hover:shadow-md transition-shadow"
+                        className="bg-card rounded-lg shadow p-3 hover:shadow-md transition-shadow border"
                       >
                         <div className="grid grid-cols-3 gap-2">
                           <img
@@ -677,8 +688,8 @@ export function VirtualTryOnWidget({
                     </Button>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <ShoppingBag className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ShoppingBag className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
                     <p>No try-on history yet</p>
                     <p className="text-sm">
                       Your recent try-ons will appear here

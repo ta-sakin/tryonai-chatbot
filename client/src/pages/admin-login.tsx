@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -17,7 +23,7 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Missing fields",
@@ -29,9 +35,12 @@ export default function AdminLogin() {
 
     setIsLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/admin/login", { email, password });
+      const response = await apiRequest("POST", "/api/admin/login", {
+        email,
+        password,
+      });
       const data = await response.json();
-      
+
       toast({
         title: "Admin access granted",
         description: "Welcome to the admin dashboard.",
@@ -49,57 +58,73 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-background dark:via-muted/20 dark:to-background flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-destructive to-orange-600 rounded-lg flex items-center justify-center">
               <Shield className="h-6 w-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Admin Portal</h1>
+            <h1 className="text-2xl font-bold text-white dark:text-foreground">
+              Admin Portal
+            </h1>
           </div>
-          <h2 className="text-3xl font-bold text-white">Admin Access</h2>
-          <p className="mt-2 text-sm text-slate-300">
+          <h2 className="text-3xl font-bold text-white dark:text-foreground">
+            Admin Access
+          </h2>
+          <p className="mt-2 text-sm text-slate-300 dark:text-muted-foreground">
             Sign in to manage users and widgets
           </p>
         </div>
 
-        <Card className="bg-slate-800 border-slate-700">
+        <Card className="bg-slate-800/50 border-slate-700 dark:bg-card/50 dark:border-border backdrop-blur">
           <CardHeader>
-            <CardTitle className="text-white">Admin Login</CardTitle>
-            <CardDescription className="text-slate-300">
+            <CardTitle className="text-white dark:text-foreground">
+              Admin Login
+            </CardTitle>
+            <CardDescription className="text-slate-300 dark:text-muted-foreground">
               Enter your admin credentials to access the dashboard
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="email" className="text-white">Email</Label>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="email"
+                  className="text-white dark:text-foreground"
+                >
+                  Email
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@example.com"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 dark:bg-background dark:border-border dark:text-foreground"
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="password" className="text-white">Password</Label>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="password"
+                  className="text-white dark:text-foreground"
+                >
+                  Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 dark:bg-background dark:border-border dark:text-foreground"
                   required
                 />
               </div>
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700"
+                className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 disabled={isLoading}
               >
                 {isLoading ? (

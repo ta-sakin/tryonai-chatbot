@@ -1,19 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { 
-  Users, 
-  Blocks, 
-  Activity, 
-  TrendingUp, 
-  Shield, 
-  Eye, 
-  ToggleLeft, 
+import {
+  Users,
+  Blocks,
+  Activity,
+  TrendingUp,
+  Shield,
+  Eye,
+  ToggleLeft,
   ToggleRight,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 
 interface AdminStats {
@@ -61,7 +67,10 @@ export default function AdminDashboard() {
 
   const toggleUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await apiRequest("PUT", `/api/admin/users/${userId}/toggle`);
+      const response = await apiRequest(
+        "PUT",
+        `/api/admin/users/${userId}/toggle`
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -83,7 +92,10 @@ export default function AdminDashboard() {
 
   const toggleClientMutation = useMutation({
     mutationFn: async (clientId: number) => {
-      const response = await apiRequest("PUT", `/api/admin/clients/${clientId}/toggle`);
+      const response = await apiRequest(
+        "PUT",
+        `/api/admin/clients/${clientId}/toggle`
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -111,7 +123,12 @@ export default function AdminDashboard() {
     );
   }
 
-  const stats: AdminStats = dashboardData?.stats || { totalUsers: 0, activeUsers: 0, totalWidgets: 0, activeWidgets: 0 };
+  const stats: AdminStats = dashboardData?.stats || {
+    totalUsers: 0,
+    activeUsers: 0,
+    totalWidgets: 0,
+    activeWidgets: 0,
+  };
   const recentUsers: AdminUser[] = users || [];
   const recentClients: AdminClient[] = dashboardData?.clients || [];
 
@@ -124,7 +141,9 @@ export default function AdminDashboard() {
             <Shield className="h-8 w-8 text-red-500" />
             <div>
               <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-              <p className="text-slate-300 mt-1">Manage users and widgets across the platform</p>
+              <p className="text-slate-300 mt-1">
+                Manage users and widgets across the platform
+              </p>
             </div>
           </div>
         </div>
@@ -142,8 +161,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-slate-300">Total Users</p>
-                  <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
+                  <p className="text-sm font-medium text-slate-300">
+                    Total Users
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {stats.totalUsers}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -158,8 +181,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-slate-300">Active Users</p>
-                  <p className="text-2xl font-bold text-white">{stats.activeUsers}</p>
+                  <p className="text-sm font-medium text-slate-300">
+                    Active Users
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {stats.activeUsers}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -174,8 +201,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-slate-300">Total Widgets</p>
-                  <p className="text-2xl font-bold text-white">{stats.totalWidgets}</p>
+                  <p className="text-sm font-medium text-slate-300">
+                    Total Widgets
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {stats.totalWidgets}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -190,8 +221,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-slate-300">Active Widgets</p>
-                  <p className="text-2xl font-bold text-white">{stats.activeWidgets}</p>
+                  <p className="text-sm font-medium text-slate-300">
+                    Active Widgets
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {stats.activeWidgets}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -213,15 +248,23 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="space-y-4">
                 {recentUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-4 bg-slate-700 rounded-lg">
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 bg-slate-700 rounded-lg"
+                  >
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <div>
-                          <p className="text-white font-medium">{user.username}</p>
+                          <p className="text-white font-medium">
+                            {user.username}
+                          </p>
                           <p className="text-slate-300 text-sm">{user.email}</p>
                         </div>
                         {user.isAdmin && (
-                          <Badge variant="secondary" className="bg-red-600 text-white">
+                          <Badge
+                            variant="secondary"
+                            className="bg-red-600 text-white"
+                          >
                             Admin
                           </Badge>
                         )}
@@ -268,17 +311,29 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="space-y-4">
                 {recentClients.map((client) => (
-                  <div key={client.id} className="flex items-center justify-between p-4 bg-slate-700 rounded-lg">
+                  <div
+                    key={client.id}
+                    className="flex items-center justify-between p-4 bg-slate-700 rounded-lg"
+                  >
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <div>
-                          <p className="text-white font-medium">{client.username}</p>
-                          <p className="text-slate-300 text-sm">{client.email}</p>
-                          <p className="text-slate-400 text-xs">App ID: {client.appId}</p>
+                          <p className="text-white font-medium">
+                            {client.username}
+                          </p>
+                          <p className="text-slate-300 text-sm">
+                            {client.email}
+                          </p>
+                          <p className="text-slate-400 text-xs">
+                            App ID: {client.appId}
+                          </p>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center space-x-4 text-xs text-slate-400">
-                        <span>Usage: {client.monthlyTryOnCount}/{client.monthlyTryOnLimit}</span>
+                        <span>
+                          Usage: {client.monthlyTryOnCount}/
+                          {client.monthlyTryOnLimit}
+                        </span>
                         {client.websiteUrl && (
                           <span>Site: {client.websiteUrl}</span>
                         )}
@@ -291,7 +346,9 @@ export default function AdminDashboard() {
                       )}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge variant={client.isActive ? "default" : "secondary"}>
+                      <Badge
+                        variant={client.isActive ? "default" : "secondary"}
+                      >
                         {client.isActive ? "Active" : "Disabled"}
                       </Badge>
                       <Button

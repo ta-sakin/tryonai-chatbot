@@ -20,38 +20,51 @@ export default function WidgetDemo() {
       <Spinner size="lg" />
     </div>;
   }
-
+  const client = data?.clients?.[0];
+  console.log("client", client, data);
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Demo Store Header */}
-      <div className="bg-gray-900 text-white py-3">
+      <div className="bg-slate-900 dark:bg-slate-950 text-white py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <h1 className="text-xl font-bold">StyleHub Fashion</h1>
             <nav className="hidden md:flex space-x-6">
-              <a href="#" className="text-gray-300 hover:text-white">
+              <a
+                href="#"
+                className="text-slate-300 hover:text-white transition-colors"
+              >
                 Women
               </a>
-              <a href="#" className="text-gray-300 hover:text-white">
+              <a
+                href="#"
+                className="text-slate-300 hover:text-white transition-colors"
+              >
                 Men
               </a>
-              <a href="#" className="text-gray-300 hover:text-white">
+              <a
+                href="#"
+                className="text-slate-300 hover:text-white transition-colors"
+              >
                 Sale
               </a>
             </nav>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-gray-300">🔍</span>
-            <span className="text-gray-300">🛍️</span>
+            <span className="text-slate-300">🔍</span>
+            <span className="text-slate-300">🛍️</span>
           </div>
         </div>
       </div>
 
       {/* Demo Badge */}
-      <div className="bg-blue-50 border-b border-blue-200 py-2">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center">
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            <Badge
+              variant="secondary"
+              className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200"
+            >
               🎯 This is a demo store showcasing TryOn AI widget functionality
             </Badge>
           </div>
@@ -75,11 +88,9 @@ export default function WidgetDemo() {
 
           {/* Product Info */}
           <div className="mt-10 px-4 sm:px-0 sm:mt-16 lg:mt-0">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Elegant Shirt
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">Elegant Shirt</h1>
             <div className="mt-3">
-              <p className="text-3xl tracking-tight text-gray-900">$29.99</p>
+              <p className="text-3xl tracking-tight">$29.99</p>
             </div>
 
             <div className="mt-6">
@@ -87,7 +98,7 @@ export default function WidgetDemo() {
                 <div className="flex items-center">
                   <span className="text-yellow-400">★★★★☆</span>
                 </div>
-                <p className="ml-3 text-sm text-gray-600">
+                <p className="ml-3 text-sm text-muted-foreground">
                   4.0 out of 5 stars (24 reviews)
                 </p>
               </div>
@@ -95,7 +106,7 @@ export default function WidgetDemo() {
 
             <div className="mt-6">
               <h3 className="sr-only">Description</h3>
-              <p className="text-base text-gray-700">
+              <p className="text-base text-muted-foreground">
                 This elegant shirt features a sophisticated silhouette perfect
                 for special occasions. Made from premium materials with
                 attention to detail, this shirt will make you feel confident and
@@ -106,13 +117,13 @@ export default function WidgetDemo() {
             {/* Size Selection */}
             <div className="mt-8">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-900">Size</h3>
+                <h3 className="text-sm font-medium">Size</h3>
               </div>
               <div className="grid grid-cols-4 gap-4 mt-4">
                 {["XS", "S", "M", "L"].map((size) => (
                   <label
                     key={size}
-                    className="group relative border rounded-md py-3 px-4 flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-gray-50"
+                    className="group relative border border-border rounded-md py-3 px-4 flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-accent transition-colors"
                   >
                     <input
                       type="radio"
@@ -129,10 +140,10 @@ export default function WidgetDemo() {
             {/* Action Buttons */}
             <div className="mt-10">
               <div className="flex space-x-4">
-                <button className="flex-1 bg-primary border border-transparent rounded-md py-3 px-8 text-base font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                <button className="flex-1 bg-primary border border-transparent rounded-md py-3 px-8 text-base font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
                   Add to Cart
                 </button>
-                <button className="flex-1 bg-white border border-gray-300 rounded-md py-3 px-8 text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+                <button className="flex-1 bg-background border border-border rounded-md py-3 px-8 text-base font-medium hover:bg-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
                   ♡ Save
                 </button>
               </div>
@@ -142,14 +153,14 @@ export default function WidgetDemo() {
             <div className="mt-8">
               <Card>
                 <CardContent className="p-4">
-                  <h4 className="font-semibold text-gray-900 mb-2">
+                  <h4 className="font-semibold mb-2">
                     Try the Virtual Try-On Widget!
                   </h4>
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Look for the floating widget in the bottom-right corner.
                     Click it to test the virtual try-on functionality.
                   </p>
-                  <ul className="text-xs text-gray-500 space-y-1">
+                  <ul className="text-xs text-muted-foreground space-y-1">
                     <li>
                       • Upload your photo and see how this dress looks on you
                     </li>
@@ -169,18 +180,19 @@ export default function WidgetDemo() {
 
       {/* TryOn Widget */}
       {/* <VirtualTryOnWidget
-        appId="demo"
-        position="bottom-right"
-        theme="default"
+        appId={client?.app_id}
+        position={"bottom-right"}
+        // position={client.widget_position}
+        theme={client?.widget_theme}
         isDemo={true}
       /> */}
-      <VirtualTryOnStandaloneWidget
-        config={{
-          appId: data?.clients?.[0].app_id,
-          position: "bottom-right",
-          theme: "default",
+      {/* <VirtualTryOnStandaloneWidget
+        widgetConfig={{
+          appId: client.app_id,
+          position: client.widget_position,
+          theme: client.widget_theme,
         }}
-      />
+      /> */}
     </div>
   );
 }

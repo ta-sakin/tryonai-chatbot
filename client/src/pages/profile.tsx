@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Form,
   FormControl,
@@ -19,7 +20,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Mail, Edit } from "lucide-react";
+import { Loader2, User, Lock, Mail, Edit, Settings } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useChangePassword, useSendVerificationEmail } from "@nhost/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useEffect, useState } from "react";
@@ -183,15 +185,20 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
+    <div className="min-h-screen bg-background py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            Profile Settings
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Manage your account settings and preferences
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              Profile Settings
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Manage your account settings and preferences
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <ThemeToggle />
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -208,19 +215,19 @@ export default function Profile() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-foreground">
                   Email
                 </label>
-                <div className="flex items-center space-x-2 p-3 bg-slate-50 rounded-md">
-                  <Mail className="h-4 w-4 text-slate-500" />
-                  <span className="text-slate-900">
+                <div className="flex items-center space-x-2 p-3 bg-muted rounded-md">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">
                     {user?.email || "Not available"}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-foreground">
                   Display Name
                 </label>
                 {isEditingName ? (
@@ -277,10 +284,10 @@ export default function Profile() {
                     </form>
                   </Form>
                 ) : (
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-md">
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-md">
                     <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-slate-500" />
-                      <span className="text-slate-900">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">
                         {user?.displayName || user?.email || "Not set"}
                       </span>
                     </div>
@@ -334,8 +341,7 @@ export default function Profile() {
                       <FormItem>
                         <FormLabel>New Password</FormLabel>
                         <FormControl>
-                          <Input
-                            type="password"
+                          <PasswordInput
                             placeholder="Enter new password"
                             {...field}
                           />
@@ -352,8 +358,7 @@ export default function Profile() {
                       <FormItem>
                         <FormLabel>Confirm New Password</FormLabel>
                         <FormControl>
-                          <Input
-                            type="password"
+                          <PasswordInput
                             placeholder="Confirm new password"
                             {...field}
                           />
@@ -393,24 +398,24 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-slate-900">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-muted rounded-lg space-y-3 sm:space-y-0">
+                <div className="flex-1">
+                  <h3 className="font-medium text-foreground">
                     Email Verification
                   </h3>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-muted-foreground">
                     Your email address is{" "}
                     {user?.emailVerified ? "verified" : "not verified"}
                   </p>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                   {user?.emailVerified ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
                       Verified
                     </span>
                   ) : (
                     <>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400">
                         Unverified
                       </span>
                       <Button
@@ -418,6 +423,7 @@ export default function Profile() {
                         size="sm"
                         onClick={handleSendVerificationEmail}
                         disabled={verificationLoading}
+                        className="w-full sm:w-auto"
                       >
                         {verificationLoading ? (
                           <>
@@ -425,7 +431,13 @@ export default function Profile() {
                             Sending...
                           </>
                         ) : (
-                          "Send Verification Email"
+                          <>
+                            <Mail className="mr-1 h-3 w-3" />
+                            <span className="sm:hidden">Send Verification</span>
+                            <span className="hidden sm:inline">
+                              Send Verification Email
+                            </span>
+                          </>
                         )}
                       </Button>
                     </>

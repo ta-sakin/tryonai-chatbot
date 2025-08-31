@@ -6,6 +6,8 @@ import { NhostApolloProvider } from "@nhost/react-apollo";
 import { useAuthenticationStatus } from "@nhost/react";
 import { nhost } from "@/lib/nhost";
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { ThemeProvider } from "@/components/theme-provider";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
@@ -13,6 +15,9 @@ import ForgotPassword from "@/pages/forgot-password";
 import Profile from "@/pages/profile";
 import Dashboard from "@/pages/dashboard";
 import WidgetDemo from "@/pages/widget-demo";
+import Pricing from "@/pages/pricing";
+import TermsOfService from "@/pages/terms-of-service";
+import PrivacyPolicy from "@/pages/privacy-policy";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import NotFound from "@/pages/not-found";
@@ -31,7 +36,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Login />;
+    navigate("/login", { replace: true });
+    return null;
   }
 
   return <>{children}</>;
@@ -70,18 +76,18 @@ function Router() {
           <Register />
         </PublicRoute>
       </Route>
-
+      <Route path="/forgot-password">
+        <PublicRoute>
+          <ForgotPassword />
+        </PublicRoute>
+      </Route>
       {/* All other routes are protected */}
       <Route path="/">
         <ProtectedRoute>
           <Landing />
         </ProtectedRoute>
       </Route>
-      <Route path="/forgot-password">
-        <ProtectedRoute>
-          <ForgotPassword />
-        </ProtectedRoute>
-      </Route>
+
       <Route path="/profile">
         <ProtectedRoute>
           <Profile />
@@ -96,6 +102,15 @@ function Router() {
         <ProtectedRoute>
           <WidgetDemo />
         </ProtectedRoute>
+      </Route>
+      <Route path="/pricing">
+        <Pricing />
+      </Route>
+      <Route path="/terms-of-service">
+        <TermsOfService />
+      </Route>
+      <Route path="/privacy-policy">
+        <PrivacyPolicy />
       </Route>
       <Route path="/admin">
         <ProtectedRoute>
@@ -118,17 +133,22 @@ function Router() {
 
 function App() {
   return (
-    <NhostProvider nhost={nhost}>
-      <NhostApolloProvider nhost={nhost}>
-        <TooltipProvider>
-          <div className="min-h-screen bg-white w-screen h-screen bg-gray-100 relative overflow-hidden">
-            <Navbar />
-            <Router />
-          </div>
-          <Toaster />
-        </TooltipProvider>
-      </NhostApolloProvider>
-    </NhostProvider>
+    <ThemeProvider defaultTheme="light" storageKey="tryon-ai-theme">
+      <NhostProvider nhost={nhost}>
+        <NhostApolloProvider nhost={nhost}>
+          <TooltipProvider>
+            <div className="min-h-screen bg-background text-foreground transition-colors flex flex-col">
+              <Navbar />
+              <main className="flex-1">
+                <Router />
+              </main>
+              <Footer />
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </NhostApolloProvider>
+      </NhostProvider>
+    </ThemeProvider>
   );
 }
 
