@@ -179,13 +179,13 @@ export default function WidgetDemo() {
       </div>
 
       {/* TryOn Widget */}
-      {/* <VirtualTryOnWidget
+      <VirtualTryOnWidget
         appId={client?.app_id}
         position={"bottom-right"}
         // position={client.widget_position}
         theme={client?.widget_theme}
         isDemo={true}
-      /> */}
+      />
       {/* <VirtualTryOnStandaloneWidget
         widgetConfig={{
           appId: client.app_id,
