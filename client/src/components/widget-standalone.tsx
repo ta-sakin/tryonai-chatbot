@@ -10,6 +10,77 @@ interface WidgetConfig {
   theme: "default" | "dark" | "minimal";
 }
 
+// Standalone Theme Provider for Shadow DOM
+const StandaloneThemeProvider: React.FC<{
+  children: React.ReactNode;
+  theme: "default" | "dark" | "minimal";
+}> = ({ children, theme }) => {
+  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    // Determine theme based on widget config and system preference
+    let resolvedTheme: "light" | "dark" = "light";
+
+    if (theme === "dark") {
+      resolvedTheme = "dark";
+    } else if (theme === "default") {
+      // Check system preference
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      ).matches;
+      resolvedTheme = prefersDark ? "dark" : "light";
+    }
+
+    setCurrentTheme(resolvedTheme);
+
+    // Apply theme class to shadow DOM host
+    const widgetHost = document.getElementById("tryon-ai-widget-host");
+    if (widgetHost && widgetHost.shadowRoot) {
+      const container = widgetHost.shadowRoot.querySelector(
+        ".tryon-widget-container"
+      );
+      if (container) {
+        container.className = `tryon-widget-container ${resolvedTheme}`;
+      }
+    }
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (theme === "default") {
+        const newTheme = e.matches ? "dark" : "light";
+        setCurrentTheme(newTheme);
+
+        // Update shadow DOM theme class
+        const widgetHost = document.getElementById("tryon-ai-widget-host");
+        if (widgetHost && widgetHost.shadowRoot) {
+          const container = widgetHost.shadowRoot.querySelector(
+            ".tryon-widget-container"
+          );
+          if (container) {
+            container.className = `tryon-widget-container ${newTheme}`;
+          }
+        }
+      }
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
+
+  // Create a mock theme context
+  const themeContext = {
+    theme: currentTheme === "dark" ? "dark" : "light",
+    setTheme: () => {}, // No-op for standalone widget
+  };
+
+  return (
+    <div className={currentTheme} data-theme={currentTheme}>
+      {React.cloneElement(children as React.ReactElement, { themeContext })}
+    </div>
+  );
+};
+
 export const VirtualTryOnStandaloneWidget: React.FC<{
   widgetConfig: WidgetConfig;
 }> = ({ widgetConfig }) => {
@@ -100,6 +171,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
       }
     };
   }, [initializeWidget]);
+
   useEffect(() => {
     if (!isInitialized) return;
 
@@ -122,7 +194,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
   }, [isInitialized]);
 
   return (
-    <>
+    <StandaloneThemeProvider theme={config.theme}>
       <VirtualTryOnWidget
         appId={config.appId}
         position={config.position}
@@ -130,7 +202,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
         // isDemo={window.location.origin === APP_URL}
         isDemo={false}
       />
-    </>
+    </StandaloneThemeProvider>
   );
 };
 
@@ -143,6 +215,128 @@ declare global {
   }
 }
 
+function createShadowDomStyles(
+  originalStyles: string,
+  theme: "default" | "dark" | "minimal"
+): string {
+  // Replace :root with :host for shadow DOM compatibility
+  let shadowStyles = originalStyles.replace(/:root/g, ":host");
+
+  // Add comprehensive theme support for shadow DOM
+  const themeSupport = `
+    /* Light theme variables (default) */
+    :host {
+      --background: 0 0% 100%;
+      --foreground: 20 14.3% 4.1%;
+      --muted: 60 4.8% 95.9%;
+      --muted-foreground: 25 5.3% 44.7%;
+      --popover: 0 0% 100%;
+      --popover-foreground: 20 14.3% 4.1%;
+      --card: 0 0% 100%;
+      --card-foreground: 20 14.3% 4.1%;
+      --border: 20 5.9% 90%;
+      --input: 20 5.9% 90%;
+      --primary: 239 84% 67%;
+      --primary-foreground: 210 40% 98%;
+      --secondary: 262 83% 58%;
+      --secondary-foreground: 210 40% 98%;
+      --accent: 142 76% 36%;
+      --accent-foreground: 210 40% 98%;
+      --destructive: 0 84.2% 60.2%;
+      --destructive-foreground: 60 9.1% 97.8%;
+      --ring: 20 14.3% 4.1%;
+      --radius: 0.5rem;
+    }
+
+    /* Dark theme variables */
+    :host .dark,
+    .tryon-widget-container.dark {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --popover: 240 10% 3.9%;
+      --popover-foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --card-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+      --input: 240 3.7% 15.9%;
+      --primary: 239 84% 67%;
+      --primary-foreground: 210 40% 98%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 0 0% 98%;
+      --ring: 240 4.9% 83.9%;
+    }
+
+    /* Ensure theme classes work in shadow DOM */
+    .dark {
+      color-scheme: dark;
+    }
+
+    /* Widget container styling */
+    .tryon-widget-container {
+      background-color: transparent;
+      color: hsl(var(--foreground));
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif;
+    }
+
+    /* Dark theme overrides for container */
+    .tryon-widget-container.dark {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --card: 240 10% 3.9%;
+      --card-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+      --input: 240 3.7% 15.9%;
+      --secondary: 240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 0 0% 98%;
+      --ring: 240 4.9% 83.9%;
+    }
+
+    /* Ensure all child elements can access theme variables */
+    :host *,
+    :host *::before,
+    :host *::after {
+      box-sizing: border-box;
+    }
+
+    /* Apply system theme preference if theme is default */
+    @media (prefers-color-scheme: dark) {
+      :host(.system-theme) {
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --muted: 240 3.7% 15.9%;
+        --muted-foreground: 240 5% 64.9%;
+        --popover: 240 10% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --card: 240 10% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --border: 240 3.7% 15.9%;
+        --input: 240 3.7% 15.9%;
+        --secondary: 240 3.7% 15.9%;
+        --secondary-foreground: 0 0% 98%;
+        --accent: 240 3.7% 15.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --ring: 240 4.9% 83.9%;
+      }
+    }
+  `;
+
+  return themeSupport + shadowStyles;
+}
+
 async function mountWidget(config: WidgetConfig) {
   const host = document.createElement("div");
   host.id = "tryon-ai-widget-host";
@@ -150,15 +344,28 @@ async function mountWidget(config: WidgetConfig) {
 
   const shadow = host.attachShadow({ mode: "open" });
 
-  const styleEl = document.createElement("style");
-  styleEl.textContent = styles;
-  shadow.appendChild(styleEl);
-  const shadowDomStyles = styles.replace(":root", ":host");
-  styleEl.textContent = shadowDomStyles;
+  // Create enhanced styles for shadow DOM with proper theme support
+  const enhancedStyles = createShadowDomStyles(styles, config.theme);
 
+  const styleEl = document.createElement("style");
+  styleEl.textContent = enhancedStyles;
   shadow.appendChild(styleEl);
+
   const container = document.createElement("div");
   container.id = "tryon-ai-widget";
+
+  // Determine initial theme class
+  let themeClass = "light";
+  if (config.theme === "dark") {
+    themeClass = "dark";
+  } else if (config.theme === "default") {
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+    themeClass = prefersDark ? "dark" : "light";
+  }
+
+  container.className = `tryon-widget-container ${themeClass}`;
   shadow.appendChild(container);
 
   createRoot(container).render(

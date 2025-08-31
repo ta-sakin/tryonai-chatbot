@@ -27,11 +27,18 @@ import { APP_URL, cn } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
 import { useTheme } from "./theme-provider";
 
+// Mock theme hook for standalone widget
+const useMockTheme = () => ({
+  theme: "light" as const,
+  setTheme: () => {},
+});
+
 interface VirtualTryOnWidgetProps {
   appId: string;
   position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   theme?: "default" | "dark" | "minimal";
   isDemo?: boolean;
+  themeContext?: any; // For standalone widget theme context
 }
 async function urlToBase64(url: string) {
   const response = await fetch(url);
@@ -49,6 +56,7 @@ export function VirtualTryOnWidget({
   position = "bottom-right",
   theme = "default",
   isDemo = false,
+  themeContext,
 }: VirtualTryOnWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(isDemo);
   const [userImage, setUserImage] = useState<string>("");
@@ -67,16 +75,16 @@ export function VirtualTryOnWidget({
   const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
   const userFileInputRef = useRef<HTMLInputElement>(null);
   const clothingFileInputRef = useRef<HTMLInputElement>(null);
-  const { setTheme, theme: appTheme } = useTheme();
-  console.log("VirtualTryOnWidget", {
-    appId,
-    theme,
-    position,
-  });
+  // Use theme context if provided (standalone), otherwise use regular theme hook
+  let themeHook;
+  try {
+    themeHook = themeContext || useTheme();
+  } catch {
+    // Fallback for standalone widget without theme provider
+    themeHook = useMockTheme();
+  }
+  const { setTheme, theme: appTheme } = themeHook;
 
-  useEffect(() => {
-    setTheme(isDemo ? appTheme : theme === "default" ? "light" : "dark");
-  }, [theme]);
   const positionClasses = {
     "bottom-right": "bottom-6 right-6",
     "bottom-left": "bottom-6 left-6",
