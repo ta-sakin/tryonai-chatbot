@@ -39,8 +39,9 @@ import {
   Shield,
   RefreshCw,
   Loader2,
+  Check,
 } from "lucide-react";
-import { genereateRandomBytes } from "@/lib/utils";
+import { APP_URL, genereateRandomBytes } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function Dashboard() {
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const [widgetTheme, setWidgetTheme] = useState("default");
   const [requireReferrerCheck, setRequireReferrerCheck] = useState(true);
   const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(10);
+  const [copied, setCopied] = useState(false);
 
   // Update state when client data changes
   useEffect(() => {
@@ -171,15 +173,13 @@ export default function Dashboard() {
   };
 
   const getSecureEmbedCode = () => {
-    if (!client?.public_key) return "";
+    if (!client?.app_id) return "";
 
     return `<script>
   (function() {
     var script = document.createElement('script');
-    script.src = 'https://cdn.tryonai.com/widget.js';
+    script.src = '${APP_URL}/widget.js';
     script.dataset.appId = '${client.app_id}';
-    script.dataset.position = '${widgetPosition}';
-    script.dataset.theme = '${widgetTheme}';
     document.head.appendChild(script);
   })();
 </script>`;
@@ -401,11 +401,12 @@ export default function Dashboard() {
                       className="font-mono text-sm bg-muted"
                     />
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() =>
                         copyToClipboard(client.public_key, "Public Key")
                       }
+                      className="absolute right-12"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -449,7 +450,7 @@ export default function Dashboard() {
                 {/* Widget Theme */}
                 <div>
                   <Label>Widget Theme</Label>
-                  <div className="grid grid-cols-3 gap-4 mt-2">
+                  <div className="grid grid-cols-2 gap-4 mt-2">
                     {[
                       {
                         value: "default",
@@ -457,11 +458,6 @@ export default function Dashboard() {
                         color: "bg-primary",
                       },
                       { value: "dark", name: "Dark", color: "bg-gray-800" },
-                      {
-                        value: "minimal",
-                        name: "Minimal",
-                        color: "bg-white border",
-                      },
                     ].map((theme) => (
                       <label key={theme.value} className="cursor-pointer">
                         <input
@@ -630,20 +626,35 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 overflow-x-auto">
-                    <pre className="text-green-400 text-sm">
-                      <code>{getSecureEmbedCode()}</code>
-                    </pre>
+                  <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 relative">
+                    {/* Copy button stays fixed in the corner of this box */}
+                    <Button
+                      className="absolute top-2 right-2 z-10"
+                      onClick={() => {
+                        copyToClipboard(
+                          getSecureEmbedCode(),
+                          "Secure embed code"
+                        );
+                        setCopied(true);
+
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      variant="link"
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+
+                    {/* Scrollable code block */}
+                    <div className="overflow-x-auto mt-2 scrollbar-hide">
+                      <pre className="text-green-400 text-sm">
+                        <code>{getSecureEmbedCode()}</code>
+                      </pre>
+                    </div>
                   </div>
-                  <Button
-                    className="mt-4"
-                    onClick={() =>
-                      copyToClipboard(getSecureEmbedCode(), "Secure embed code")
-                    }
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy Secure Code
-                  </Button>
 
                   <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <div className="flex items-start space-x-2">
