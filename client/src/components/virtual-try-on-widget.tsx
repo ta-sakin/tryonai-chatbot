@@ -38,7 +38,9 @@ interface VirtualTryOnWidgetProps {
   position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   theme?: "default" | "dark" | "minimal";
   isDemo?: boolean;
-  themeContext?: any; // For standalone widget theme context
+  themeContext?: any;
+  loading?: boolean;
+  error?: string;
 }
 async function urlToBase64(url: string) {
   const response = await fetch(url);
@@ -57,6 +59,8 @@ export function VirtualTryOnWidget({
   theme = "default",
   isDemo = false,
   themeContext,
+  loading = false,
+  error = "",
 }: VirtualTryOnWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(isDemo);
   const [userImage, setUserImage] = useState<string>("");
@@ -76,14 +80,14 @@ export function VirtualTryOnWidget({
   const userFileInputRef = useRef<HTMLInputElement>(null);
   const clothingFileInputRef = useRef<HTMLInputElement>(null);
   // Use theme context if provided (standalone), otherwise use regular theme hook
-  let themeHook;
-  try {
-    themeHook = themeContext || useTheme();
-  } catch {
-    // Fallback for standalone widget without theme provider
-    themeHook = useMockTheme();
-  }
-  const { setTheme, theme: appTheme } = themeHook;
+  // let themeHook;
+  // try {
+  //   themeHook = themeContext || useTheme();
+  // } catch {
+  //   // Fallback for standalone widget without theme provider
+  //   themeHook = useMockTheme();
+  // }
+  // const { setTheme, theme: appTheme } = themeHook;
 
   const positionClasses = {
     "bottom-right": "bottom-6 right-6",

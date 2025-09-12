@@ -83,9 +83,9 @@ function Router() {
       </Route>
       {/* All other routes are protected */}
       <Route path="/">
-        <ProtectedRoute>
+        <>
           <Landing />
-        </ProtectedRoute>
+        </>
       </Route>
 
       <Route path="/profile">

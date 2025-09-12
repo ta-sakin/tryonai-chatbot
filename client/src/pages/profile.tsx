@@ -29,6 +29,7 @@ import { useMutation } from "@apollo/client";
 import { gql } from "@apollo/client";
 import { UPDATE_USER_MUTATION } from "@/graphql/mutations";
 import { nhost } from "@/lib/nhost";
+import { Spinner } from "@/components/ui/spinner";
 
 const changePasswordSchema = z
   .object({
@@ -179,7 +180,7 @@ export default function Profile() {
   if (userLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Spinner />
       </div>
     );
   }

@@ -114,9 +114,7 @@ export function Navbar() {
                           <p className="text-sm font-medium leading-none">
                             {user?.displayName}
                           </p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {user?.email}
-                          </p>
+                          <p className="text-xs leading-none">{user?.email}</p>
                         </div>
                       </DropdownMenuItem>
                     </Link>

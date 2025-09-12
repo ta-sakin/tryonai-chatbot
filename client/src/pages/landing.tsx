@@ -23,6 +23,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
+
       <section className="relative overflow-hidden">
         {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 dark:from-primary/10 dark:via-secondary/10 dark:to-accent/10" />
@@ -143,7 +144,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       {/* Features Section */}
       <section className="py-20 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -209,7 +209,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       {/* How It Works Section */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -268,7 +267,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       {/* Platform Support Section */}
       <section className="py-20 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -303,7 +301,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       {/* Stats Section */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -335,7 +332,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-primary via-secondary to-accent text-primary-foreground relative overflow-hidden">
         <div className="absolute inset-0 bg-black/20" />

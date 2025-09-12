@@ -576,6 +576,7 @@ tryonRoutes.post("/try-on", async (req, res) => {
         $clothingImageUrl: String
         $originDomain: String!
         $userIp: String!
+        
       ) {
         insert_try_on_sessions_one(object: {
           client_id: $clientId
@@ -647,15 +648,30 @@ tryonRoutes.post("/try-on", async (req, res) => {
       try {
         await nhost.graphql.request(
           `mutation UpdateTryOnSession($id: uuid!, $resultImage: String, $status: String!) {
-            update_try_on_sessions_by_pk(pk_columns: { id: $id }, _set: {
-              result_image: $resultImage
-              status: $status
-            }) { id status }
-          }`,
+            update_try_on_sessions_by_pk(pk_columns: {id: $id}, _set: {result_image: $resultImage, status: $status}) {
+              id
+              status
+            }
+          }
+  `,
           { id: session.id, resultImage, status: "completed" }
         );
+        return res.json({
+          success: true,
+          message: "Try-on completed successfully",
+          error: null,
+          sessionId: session.id,
+          resultImage,
+        });
       } catch (e) {
         console.log("error update_try_on_sessions_by_pk", e);
+        return res.json({
+          success: true,
+          message: "Try-on completed successfully",
+          error: "Failed to store result image in db",
+          sessionId: session.id,
+          resultImage,
+        });
       }
 
       return res.json({
@@ -802,7 +818,8 @@ export async function processWithGemini(
     // `;
     const response = await ai.models.generateContent({
       // model: "gemini-2.0-flash-exp-image-generation",
-      model: "gemini-2.0-flash-preview-image-generation",
+      // model: "gemini-2.0-flash-preview-image",
+      model: "gemini-2.5-flash-preview-image",
       contents: [
         { text: prompt },
         {

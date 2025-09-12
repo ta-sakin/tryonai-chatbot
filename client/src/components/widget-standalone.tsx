@@ -91,7 +91,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isRefreshingRef = useRef(false);
   const mountedRef = useRef(true);
-
+  const [loading, setLoading] = useState(false);
   // Initialize widget with secure token
   const initializeWidget = useCallback(
     async (isRefresh = false) => {
@@ -104,6 +104,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
       }
 
       try {
+        setLoading(true);
         const domain = window.location.hostname;
         console.log({
           APP_URL,
@@ -155,6 +156,7 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
         if (isRefresh) {
           isRefreshingRef.current = false;
         }
+        setLoading(false);
       }
     },
     [config, error]
@@ -193,6 +195,9 @@ export const VirtualTryOnStandaloneWidget: React.FC<{
     setTimeout(detectProductImage, 1000);
   }, [isInitialized]);
 
+  if (loading) {
+    return;
+  }
   return (
     <StandaloneThemeProvider theme={config.theme}>
       <VirtualTryOnWidget
@@ -332,9 +337,9 @@ function createShadowDomStyles(
         --ring: 240 4.9% 83.9%;
       }
     }
-  `;
+    `;
 
-  return themeSupport + shadowStyles;
+  return shadowStyles;
 }
 
 async function mountWidget(config: WidgetConfig) {
@@ -358,12 +363,14 @@ async function mountWidget(config: WidgetConfig) {
   let themeClass = "light";
   if (config.theme === "dark") {
     themeClass = "dark";
-  } else if (config.theme === "default") {
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
-    themeClass = prefersDark ? "dark" : "light";
   }
+  console.log("themeClass", themeClass);
+  // else if (config.theme === "default") {
+  //   const prefersDark = window.matchMedia(
+  //     "(prefers-color-scheme: dark)"
+  //   ).matches;
+  //   themeClass = prefersDark ? "dark" : "light";
+  // }
 
   container.className = `tryon-widget-container ${themeClass}`;
   shadow.appendChild(container);
@@ -393,11 +400,11 @@ function initWidgetFromScriptTag() {
   mountWidget(config);
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initWidgetFromScriptTag);
-} else {
-  initWidgetFromScriptTag();
-}
+// if (document.readyState === "loading") {
+//   document.addEventListener("DOMContentLoaded", initWidgetFromScriptTag);
+// } else {
+//   initWidgetFromScriptTag();
+// }
 
 window.TryOnAI = {
   init: (config: Partial<WidgetConfig>) => {
