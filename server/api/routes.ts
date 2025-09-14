@@ -6,7 +6,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import express, { type Request, Response, NextFunction } from "express";
 
 import "dotenv/config";
-import { parseBase64Image } from "./utils";
+import { parseBase64Image, genereateRandomBytes } from "./utils";
 import { nhost } from "./nhost";
 nhost.graphql.setHeaders({
   "x-hasura-role": "admin",
@@ -465,6 +465,87 @@ tryonRoutes.post("/widget/init", async (req, res) => {
       success: false,
       message: "Widget initialization failed",
       error,
+    });
+  }
+});
+tryonRoutes.post("/create_client", async (req, res) => {
+  try {
+    const body = req.body;
+    const user = body.event.data.new;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No user found",
+      });
+    }
+    const secret = req.headers["nhost-webhook-secret"];
+    if (secret !== process.env.NHOST_WEBHOOK_SECRET) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized. Unmatched NHOST_WEBHOOK_SECRET",
+      });
+    }
+
+    // Generate client credentials
+    const userId = user?.id;
+    const appId = `app_${genereateRandomBytes()}`;
+    const publicKey = `pk_${genereateRandomBytes()}`;
+    const secretKey = `sk_${genereateRandomBytes(32)}`;
+
+    // Extract optional fields from user data
+    const websiteUrl = user?.website_url || null;
+    const allowedDomains = user?.allowed_domains || [];
+
+    const clientObject = {
+      user_id: userId,
+      app_id: appId,
+      secret_key: secretKey,
+      public_key: publicKey,
+      website_url: websiteUrl,
+      allowed_domains: allowedDomains,
+      widget_position: "bottom-right",
+      widget_theme: "default",
+      is_active: true,
+      monthly_try_on_limit: 100,
+      monthly_try_on_count: 0,
+      require_referrer_check: true,
+      max_requests_per_minute: 10,
+    };
+
+    // Create client in database
+    const { data: clientData, error: clientError } =
+      await nhost.graphql.request(
+        `mutation CreateClient($object: clients_insert_input!) {
+        insert_clients_one(object: $object) {
+          id
+          app_id
+          public_key
+          user_id
+        }
+      }`,
+        { object: clientObject }
+      );
+
+    if (clientError) {
+      console.error("Failed to create client:", clientError);
+      throw clientError;
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Client created successfully",
+      data: {
+        id: clientData.insert_clients_one.id,
+        app_id: clientData.insert_clients_one.app_id,
+        public_key: clientData.insert_clients_one.public_key,
+      },
+    });
+  } catch (e) {
+    console.log("Failed to create client ", e);
+    return res.status(500).json({
+      error: e,
+      success: false,
+      message: "Failed to create client",
     });
   }
 });

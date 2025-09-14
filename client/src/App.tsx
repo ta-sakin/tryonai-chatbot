@@ -16,6 +16,9 @@ import Profile from "@/pages/profile";
 import Dashboard from "@/pages/dashboard";
 import WidgetDemo from "@/pages/widget-demo";
 import Pricing from "@/pages/pricing";
+import Services from "@/pages/services";
+import FAQ from "@/pages/faq";
+import Contact from "@/pages/contact";
 import TermsOfService from "@/pages/terms-of-service";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import AdminLogin from "@/pages/admin-login";
@@ -105,6 +108,15 @@ function Router() {
       </Route>
       <Route path="/pricing">
         <Pricing />
+      </Route>
+      <Route path="/services">
+        <Services />
+      </Route>
+      <Route path="/faq">
+        <FAQ />
+      </Route>
+      <Route path="/contact">
+        <Contact />
       </Route>
       <Route path="/terms-of-service">
         <TermsOfService />

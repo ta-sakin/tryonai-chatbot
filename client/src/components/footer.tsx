@@ -74,6 +74,26 @@ export function Footer() {
             <h3 className="text-sm font-semibold text-foreground">Support</h3>
             <ul className="space-y-3">
               <li>
+                <Link href="/faq">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-muted-foreground hover:text-primary"
+                  >
+                    FAQ
+                  </Button>
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-muted-foreground hover:text-primary"
+                  >
+                    Contact Us
+                  </Button>
+                </Link>
+              </li>
+              <li>
                 <a href="mailto:support@tryon-ai.com">
                   <Button
                     variant="link"
@@ -96,16 +116,6 @@ export function Footer() {
                   >
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Help Center
-                  </Button>
-                </a>
-              </li>
-              <li>
-                <a href="mailto:contact@tryon-ai.com">
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-muted-foreground hover:text-primary"
-                  >
-                    Contact Us
                   </Button>
                 </a>
               </li>
@@ -180,6 +190,14 @@ export function Footer() {
               © {currentYear} TryOn AI. All rights reserved.
             </p>
             <div className="flex items-center space-x-6">
+              <Link href="/faq">
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-xs text-muted-foreground hover:text-primary"
+                >
+                  FAQ
+                </Button>
+              </Link>
               <Link href="/terms-of-service">
                 <Button
                   variant="link"

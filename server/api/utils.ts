@@ -7,6 +7,12 @@ export function generateAppId(): string {
   return `tryon_${timestamp}_${randomStr}`;
 }
 
+export function genereateRandomBytes(bytes = 16): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export function parseBase64Image(dataUrl: string) {
   const [meta, base64Data] = dataUrl.split(",");
   const mimeType = meta.match(/data:(.*);base64/)?.[1] || "image/jpeg";

@@ -77,6 +77,18 @@ export function Navbar() {
                     Widget Demo
                   </Button>
                 </Link>
+                <Link href="/services">
+                  <Button
+                    variant="ghost"
+                    className={`hover:text-primary hover:bg-transparent ${
+                      location === "/services"
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Services
+                  </Button>
+                </Link>
                 <Link href="/pricing">
                   <Button
                     variant="ghost"
@@ -89,7 +101,7 @@ export function Navbar() {
                     Pricing
                   </Button>
                 </Link>
-                {/* <ThemeToggle /> */}
+                <ThemeToggle />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -130,6 +142,18 @@ export function Navbar() {
               </>
             ) : (
               <>
+                <Link href="/services">
+                  <Button
+                    variant="ghost"
+                    className={`hover:text-primary hover:bg-transparent ${
+                      location === "/services"
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Services
+                  </Button>
+                </Link>
                 <Link href="/pricing">
                   <Button
                     variant="ghost"
@@ -142,7 +166,19 @@ export function Navbar() {
                     Pricing
                   </Button>
                 </Link>
-                {/* <ThemeToggle /> */}
+                <Link href="/contact">
+                  <Button
+                    variant="ghost"
+                    className={`hover:text-primary hover:bg-transparent ${
+                      location === "/contact"
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Contact
+                  </Button>
+                </Link>
+                <ThemeToggle />
                 <Link href="/login">
                   <Button
                     variant="ghost"
@@ -160,7 +196,7 @@ export function Navbar() {
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center space-x-2">
-            {/* <ThemeToggle /> */}
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
@@ -247,6 +283,19 @@ export function Navbar() {
                 </>
               ) : (
                 <>
+                  <Link href="/services">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start h-11 hover:text-primary hover:bg-transparent ${
+                        location === "/services"
+                          ? "text-foreground font-medium"
+                          : "text-muted-foreground"
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Services
+                    </Button>
+                  </Link>
                   <Link href="/pricing">
                     <Button
                       variant="ghost"
@@ -258,6 +307,19 @@ export function Navbar() {
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Pricing
+                    </Button>
+                  </Link>
+                  <Link href="/contact">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start h-11 hover:text-primary hover:bg-transparent ${
+                        location === "/contact"
+                          ? "text-foreground font-medium"
+                          : "text-muted-foreground"
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Contact
                     </Button>
                   </Link>
                   <Link href="/login">

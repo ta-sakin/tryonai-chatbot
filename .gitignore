@@ -8,3 +8,4 @@ vite.config.ts.*
 .env.local
 client/public
 public
+hasura_metadata_2025_09_15_03_19_54_580.json
