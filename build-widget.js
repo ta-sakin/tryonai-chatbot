@@ -48,12 +48,23 @@ async function buildWidget() {
       },
     });
 
-    // Rename output
+    // Rename output and copy to dist
     const builtWidgetPath = path.join(__dirname, "public/widget.iife.js");
-    const outputPath = path.join(__dirname, "public/widget.js");
+    const publicOutputPath = path.join(__dirname, "public/widget.js");
+    const distOutputPath = path.join(__dirname, "dist/widget.js");
 
     if (fs.existsSync(builtWidgetPath)) {
-      fs.renameSync(builtWidgetPath, outputPath);
+      fs.renameSync(builtWidgetPath, publicOutputPath);
+
+      // Ensure dist directory exists
+      const distDir = path.dirname(distOutputPath);
+      if (!fs.existsSync(distDir)) {
+        fs.mkdirSync(distDir, { recursive: true });
+      }
+
+      // Copy to dist for Vercel deployment
+      fs.copyFileSync(publicOutputPath, distOutputPath);
+      console.log("✅ Widget built and copied to dist directory");
     }
   } catch (error) {
     console.error("❌ Error building widget:", error);

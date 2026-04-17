@@ -39,8 +39,9 @@ import {
   Shield,
   RefreshCw,
   Loader2,
+  Check,
 } from "lucide-react";
-import { genereateRandomBytes } from "@/lib/utils";
+import { APP_URL, genereateRandomBytes } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function Dashboard() {
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const [widgetTheme, setWidgetTheme] = useState("default");
   const [requireReferrerCheck, setRequireReferrerCheck] = useState(true);
   const [maxRequestsPerMinute, setMaxRequestsPerMinute] = useState(10);
+  const [copied, setCopied] = useState(false);
 
   // Update state when client data changes
   useEffect(() => {
@@ -171,15 +173,13 @@ export default function Dashboard() {
   };
 
   const getSecureEmbedCode = () => {
-    if (!client?.public_key) return "";
+    if (!client?.app_id) return "";
 
     return `<script>
   (function() {
     var script = document.createElement('script');
-    script.src = 'https://cdn.tryonai.com/widget.js';
+    script.src = '${APP_URL}/widget.js';
     script.dataset.appId = '${client.app_id}';
-    script.dataset.position = '${widgetPosition}';
-    script.dataset.theme = '${widgetTheme}';
     document.head.appendChild(script);
   })();
 </script>`;
@@ -234,12 +234,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            No Client Found
-          </h2>
-          {/* <p className="text-gray-600">
-            Please contact support to set up your account.
-          </p> */}
+          <h2 className="text-xl font-semibold mb-2">No Client Found</h2>
           <div className="mt-4">
             <Button onClick={createClient} disabled={creating}>
               Create
@@ -252,12 +247,12 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
             Manage your TryOn AI widgets and view analytics
           </p>
         </div>
@@ -273,10 +268,10 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-muted-foreground">
                     Total Views
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold">
                     {analyticsLoading
                       ? "..."
                       : analyticsData?.total_views?.aggregate?.count || 0}
@@ -295,8 +290,10 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Try-Ons</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Try-Ons
+                  </p>
+                  <p className="text-2xl font-bold">
                     {analyticsLoading
                       ? "..."
                       : analyticsData?.try_ons?.aggregate?.count || 0}
@@ -315,10 +312,10 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-muted-foreground">
                     Conversions
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold">
                     {analyticsLoading
                       ? "..."
                       : analyticsData?.conversions?.aggregate?.count || 0}
@@ -337,10 +334,10 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-muted-foreground">
                     Conv. Rate
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold">
                     {analyticsLoading
                       ? "..."
                       : `${
@@ -401,19 +398,20 @@ export default function Dashboard() {
                     <Input
                       value={client.public_key}
                       readOnly
-                      className="font-mono text-sm bg-gray-50"
+                      className="font-mono text-sm bg-muted"
                     />
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() =>
                         copyToClipboard(client.public_key, "Public Key")
                       }
+                      className="absolute right-12"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     This key is safe to use in your frontend code
                   </p>
                 </div>
@@ -452,7 +450,7 @@ export default function Dashboard() {
                 {/* Widget Theme */}
                 <div>
                   <Label>Widget Theme</Label>
-                  <div className="grid grid-cols-3 gap-4 mt-2">
+                  <div className="grid grid-cols-2 gap-4 mt-2">
                     {[
                       {
                         value: "default",
@@ -460,11 +458,6 @@ export default function Dashboard() {
                         color: "bg-primary",
                       },
                       { value: "dark", name: "Dark", color: "bg-gray-800" },
-                      {
-                        value: "minimal",
-                        name: "Minimal",
-                        color: "bg-white border",
-                      },
                     ].map((theme) => (
                       <label key={theme.value} className="cursor-pointer">
                         <input
@@ -515,16 +508,18 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                     <div className="flex items-start space-x-3">
-                      <div className="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-yellow-600 text-xs">⚠️</span>
+                      <div className="w-5 h-5 bg-yellow-100 dark:bg-yellow-800 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-yellow-600 dark:text-yellow-300 text-xs">
+                          ⚠️
+                        </span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-yellow-800">
+                        <h4 className="font-medium text-yellow-800 dark:text-yellow-200">
                           Secure Implementation
                         </h4>
-                        <p className="text-sm text-yellow-700 mt-1">
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                           Your widget now uses secure token-based
                           authentication. Only your public key is exposed to the
                           frontend.
@@ -631,31 +626,48 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                    <pre className="text-green-400 text-sm">
-                      <code>{getSecureEmbedCode()}</code>
-                    </pre>
-                  </div>
-                  <Button
-                    className="mt-4"
-                    onClick={() =>
-                      copyToClipboard(getSecureEmbedCode(), "Secure embed code")
-                    }
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy Secure Code
-                  </Button>
+                  <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 relative">
+                    {/* Copy button stays fixed in the corner of this box */}
+                    <Button
+                      className="absolute top-2 right-2 z-10"
+                      onClick={() => {
+                        copyToClipboard(
+                          getSecureEmbedCode(),
+                          "Secure embed code"
+                        );
+                        setCopied(true);
 
-                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      variant="link"
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+
+                    {/* Scrollable code block */}
+                    <div className="overflow-x-auto mt-2 scrollbar-hide">
+                      <pre className="text-green-400 text-sm">
+                        <code>{getSecureEmbedCode()}</code>
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <div className="flex items-start space-x-2">
-                      <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-green-600 text-xs">🔒</span>
+                      <div className="w-5 h-5 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-green-600 dark:text-green-300 text-xs">
+                          🔒
+                        </span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-green-800">
+                        <h4 className="font-medium text-green-800 dark:text-green-200">
                           Enhanced Security
                         </h4>
-                        <p className="text-sm text-green-700 mt-1">
+                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
                           This code uses your public key and secure token-based
                           authentication. Your secret keys are never exposed to
                           the frontend.
@@ -674,7 +686,7 @@ export default function Dashboard() {
                       <span className="text-blue-600 font-bold">W</span>
                     </div>
                     <h3 className="font-semibold mb-2">WordPress</h3>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                       Add to footer.php or use "Insert Headers and Footers"
                       plugin
                     </p>
@@ -690,7 +702,7 @@ export default function Dashboard() {
                       <span className="text-green-600 font-bold">S</span>
                     </div>
                     <h3 className="font-semibold mb-2">Shopify</h3>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                       Go to Online Store &gt; Themes &gt; Edit Code &gt;
                       theme.liquid
                     </p>
@@ -706,7 +718,7 @@ export default function Dashboard() {
                       <Code className="h-6 w-6 text-orange-600" />
                     </div>
                     <h3 className="font-semibold mb-2">Custom HTML</h3>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                       Paste directly into your HTML file
                     </p>
                     <Badge variant="secondary">Before &lt;/body&gt; tag</Badge>
